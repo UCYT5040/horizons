@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AirtableService } from './airtable.service';
 
 /**
- * Daily sweep of the Users table. The per-event hooks in
+ * Hourly sweep of the Users table. The per-event hooks in
  * AirtableService.syncUserStats keep things fresh in normal flow, but stats
  * also drift via paths that don't trigger a sync (Hackatime recalc, manual
  * project edits). This cron walks every user with an Airtable record and
@@ -29,9 +29,9 @@ export class AirtableSyncService implements OnModuleInit {
     );
   }
 
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
-  async handleDailyUserStatsSync() {
-    await this.runSync('daily');
+  @Cron(CronExpression.EVERY_HOUR)
+  async handleHourlyUserStatsSync() {
+    await this.runSync('hourly');
   }
 
   // Catch-up for transactions whose live sync failed (plus the one-time
@@ -42,7 +42,7 @@ export class AirtableSyncService implements OnModuleInit {
     await this.runTransactionSync('interval');
   }
 
-  private async runSync(trigger: 'startup' | 'daily') {
+  private async runSync(trigger: 'startup' | 'hourly') {
     this.logger.log(`Starting ${trigger} Airtable user-stats sync`);
     try {
       const result = await this.airtableService.syncAllUserStats();
