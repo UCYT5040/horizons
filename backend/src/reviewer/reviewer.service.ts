@@ -25,6 +25,7 @@ import { FraudReviewService } from '../fraud-review/fraud-review.service';
 import { ManifestService } from '../manifest/manifest.service';
 import {
   SubmissionApprovalService,
+  autoApprovedHours,
   priorManualReduction,
 } from '../submission-approval/submission-approval.service';
 import { AUDIT_ACTIONS } from '../submission-approval/audit-actions';
@@ -863,8 +864,75 @@ export class ReviewerService {
       );
     }
 
-    const hackatimeHours = submission.project.nowHackatimeHours || 0;
-    const approvedHours = dto.approvedHours ?? hackatimeHours;
+    // The submission's own frozen figure, not the project's live one: it is what
+    // the verdict panel approves against and what buildFullJustification narrates.
+    // Computing from the live figure here would make the justification describe
+    // arithmetic that doesn't reach the number actually stored.
+    const hackatimeHours =
+      submission.hackatimeHours ?? submission.project.nowHackatimeHours ?? 0;
+
+    // Quick approve applies the same automatic AI reduction the verdict panel
+    // does — AI time is credited at 1/3 regardless of which button approved it.
+    // Only the AI *share* is comparable: the breakdown is a live, non-deduped
+    // query while the hours here are the project's tracked figure, so the share
+    // is applied proportionally rather than the raw hour count subtracted.
+    // A Hackatime failure must not block the approval, so it degrades to
+    // crediting the tracked time in full with no AI snapshot recorded.
+    let aiHours: number | null = null;
+    try {
+      const breakdown = await this.hackatimeService.getProjectHourBreakdown(
+        submission.projectId,
+      );
+      if (breakdown.totalHours > 0 && breakdown.aiHours > 0) {
+        const share = Math.min(1, breakdown.aiHours / breakdown.totalHours);
+        aiHours = hackatimeHours * share;
+      }
+    } catch {
+      aiHours = null;
+    }
+
+    const priorApproved = await this.prisma.submission.findFirst({
+      where: {
+        projectId: submission.projectId,
+        approvalStatus: 'approved',
+        submissionId: { not: submissionId },
+        // Same predicate and ordering as getPriorApprovedInfo and the Airtable
+        // delta query — "prior" has to mean the same submission everywhere, or
+        // the hours written here disagree with the justification describing them.
+        createdAt: { lt: submission.createdAt },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        approvedHours: true,
+        hackatimeHours: true,
+        aiHours: true,
+        aiReductionApplied: true,
+      },
+    });
+
+    // An explicit hour count from the reviewer wins outright — that is a manual
+    // figure, and the justification reports it as such. Otherwise: automatic AI
+    // reduction, minus any manual deduction an earlier reviewer made on this
+    // project, which stays deducted because that time is still inside the
+    // cumulative tracked figure.
+    const autoHours =
+      (aiHours != null
+        ? autoApprovedHours(hackatimeHours, aiHours)
+        : hackatimeHours) -
+      (priorApproved ? priorManualReduction(priorApproved) : 0);
+    // Rounded to match what the verdict panel would have stored for the same
+    // project, so the two approval paths can't leave different-looking figures.
+    let approvedHours =
+      dto.approvedHours ?? Math.round(autoHours * 100) / 100;
+
+    // Approved hours are cumulative and overwrite the user's balance, so an
+    // update can never land below what a previous submission already granted.
+    if (
+      priorApproved?.approvedHours != null &&
+      approvedHours < priorApproved.approvedHours
+    ) {
+      approvedHours = priorApproved.approvedHours;
+    }
 
     const autoAnalysis = `Quick approved with ${approvedHours.toFixed(1)} hours.`;
     const reviewerAnalysisText = dto.hoursJustification || autoAnalysis;
@@ -873,6 +941,8 @@ export class ReviewerService {
       where: { submissionId },
       data: {
         approvedHours,
+        aiHours,
+        aiReductionApplied: aiHours != null ? true : null,
         hoursJustification: dto.userFeedback || '',
       },
     });
@@ -888,6 +958,7 @@ export class ReviewerService {
           previousStatus: submission.approvalStatus,
           quickApprove: true,
           approvedHours,
+          aiHours,
           userFeedback: dto.userFeedback || null,
         },
       },
