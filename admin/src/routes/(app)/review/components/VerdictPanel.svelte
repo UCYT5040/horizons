@@ -51,6 +51,10 @@
 		/** approvedHours from the most recent OTHER approved submission for this
 		 *  project, if any. Used to surface the reship delta. */
 		priorReshipApprovedHours?: number | null;
+		/** Hours the reviewer of that prior approval took off by hand, on top of
+		 *  the automatic AI reduction. Carried forward so a reship doesn't
+		 *  re-credit time an earlier reviewer already rejected. */
+		priorManualReduction?: number;
 		/** Sum of hoursShipped from non-Horizons Manifest entries — already
 		 *  credited elsewhere, so subtracted from the delta sent to Airtable. */
 		priorYswsHoursShipped?: number;
@@ -79,6 +83,7 @@
 		isResubmission = false,
 		hasPriorYswsSubmission = false,
 		priorReshipApprovedHours = null,
+		priorManualReduction = 0,
 		priorYswsHoursShipped = 0,
 		readOnly = false,
 		onReviewComplete,
@@ -163,10 +168,17 @@
 	);
 	// The hour count the checkbox implies: standard coding in full + a third of
 	// the AI time.
-	let computedApprovedHours = $derived(
+	let baseApprovedHours = $derived(
 		reduceAiHours && nonAiHours != null && reducedAiHours != null
-			? Math.round((nonAiHours + reducedAiHours) * 100) / 100
-			: Math.round((hackatimeHours ?? 0) * 100) / 100,
+			? nonAiHours + reducedAiHours
+			: (hackatimeHours ?? 0),
+	);
+	// A manual deduction on an earlier approval of this project stays deducted:
+	// that time is still inside the cumulative tracked figure above, so without
+	// this a reship silently re-credits hours a previous reviewer rejected.
+	// Backend computes the figure (priorManualReduction) so both sides agree.
+	let computedApprovedHours = $derived(
+		Math.round((baseApprovedHours - priorManualReduction) * 100) / 100,
 	);
 	// Approved hours are cumulative across reships and overwrite the project's
 	// balance, so a rising AI share on an update could compute below what was
@@ -620,13 +632,21 @@
 							→ reduced to <span class="text-rv-text font-semibold">{fmtH(reducedAiHours)}</span>.
 							<br />
 							{fmtH(nonAiHours)} standard + {fmtH(reducedAiHours)} AI =
-							<span class="text-rv-text font-semibold">{fmtH(autoApprovedHours)}</span>
+							<span class="text-rv-text font-semibold">{fmtH(baseApprovedHours)}</span>
 						{:else}
 							<span class="text-rv-text font-semibold">{fmtH(hackatimeHours)}</span> tracked,
 							of which <span class="text-rv-text font-semibold">{fmtH(effectiveAiHours)}</span> was AI —
 							credited in full (reduction overridden).
 						{/if}
-							{#if heldAtPriorApproval}
+						{#if priorManualReduction >= 0.05}
+							<br />
+							<span class="text-amber-600 font-semibold">
+								−{fmtH(priorManualReduction)} carried forward from a manual deduction on
+								a previous approval of this project (that time is still in the tracked
+								total above) = {fmtH(computedApprovedHours)}
+							</span>
+						{/if}
+						{#if heldAtPriorApproval}
 							<br />
 							<span class="text-amber-600 font-semibold">
 								Held at {fmtH(autoApprovedHours)} — already approved for this project.

@@ -4019,6 +4019,7 @@ export interface components {
             reviewedAt: string | null;
             hackatimeHours: number | null;
             approvedHours: number | null;
+            manualReduction: number;
         };
         SubmissionDetailResponse: {
             submissionId: number;
