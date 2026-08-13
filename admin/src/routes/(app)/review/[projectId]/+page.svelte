@@ -893,6 +893,22 @@
 										.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 									return priorApproved[0]?.approvedHours ?? null;
 								})()}
+								priorManualReduction={(() => {
+									// Hours the reviewer of that same prior approval took off by
+									// hand. Backend computes it so the panel's default and the
+									// Airtable justification carry the same figure forward.
+									const submissions = currentSubmission.submissions ?? [];
+									const currentCreatedAt = new Date(currentSubmission.createdAt).getTime();
+									const priorApproved = submissions
+										.filter((s) =>
+											s.submissionId !== currentSubmission!.submissionId
+											&& s.approvalStatus === 'approved'
+											&& s.approvedHours != null
+											&& new Date(s.createdAt).getTime() < currentCreatedAt,
+										)
+										.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+									return priorApproved[0]?.manualReduction ?? 0;
+								})()}
 								readOnly={readOnlyMode}
 								onReviewComplete={handleReviewComplete}
 							/>

@@ -46,6 +46,10 @@ interface FraudReviewInfo {
 // this record is an update to credit Airtable already carries.
 interface PriorApprovedInfo {
   approvedHours: number | null;
+  // Hours the previous reviewer took off by hand, on top of whatever the AI
+  // reduction did. Carried forward so a reship doesn't silently re-credit time
+  // an earlier reviewer already rejected — see priorManualReduction().
+  manualReduction: number;
 }
 
 // AI time snapshot taken at review time, plus whether the reviewer left the
@@ -69,6 +73,32 @@ export function autoApprovedHours(
 ): number {
   const ai = Math.min(Math.max(aiHours, 0), trackedHours);
   return trackedHours - ai + ai * AI_CREDIT_FRACTION;
+}
+
+/**
+ * Hours a reviewer removed by hand on an already-approved submission: the gap
+ * between what its settings computed automatically and what was actually
+ * approved. Because approved hours are cumulative, this figure is itself
+ * cumulative — a third ship inherits the sum of both earlier manual cuts
+ * without any extra bookkeeping.
+ *
+ * Returns 0 when it can't be established (no tracked hours on record), and
+ * never goes negative — a reviewer who granted *more* than the automatic figure
+ * made a one-off allowance for that submission, not a standing credit.
+ */
+export function priorManualReduction(prior: {
+  approvedHours: number | null;
+  hackatimeHours: number | null;
+  aiHours: number | null;
+  aiReductionApplied: boolean | null;
+}): number {
+  if (prior.approvedHours == null || prior.hackatimeHours == null) return 0;
+  const ai =
+    prior.aiReductionApplied !== false && prior.aiHours != null
+      ? Math.min(Math.max(prior.aiHours, 0), prior.hackatimeHours)
+      : 0;
+  const baseline = autoApprovedHours(prior.hackatimeHours, ai);
+  return Math.max(0, baseline - prior.approvedHours);
 }
 
 /**
@@ -151,6 +181,21 @@ function buildHoursNarrative(
         `This user tracked ${tracked} on Hackatime for this project overall. ${aiTracked} AI coding (reduced to 1/3 → ${aiReduced}) and ${nonAi} standard coding, giving ${formatHoursMin(baseline)}.`,
       );
     }
+  }
+
+  // A manual reduction on an earlier ship is a judgement about tracked time
+  // that is still inside this ship's cumulative figure, so it carries forward.
+  // Without this, a reship recomputes from the full tracked total and silently
+  // re-credits hours a previous reviewer already rejected.
+  const carriedReduction = priorApproved?.manualReduction ?? 0;
+  if (carriedReduction >= 0.05) {
+    baseline -= carriedReduction;
+    lines.push(
+      // Deliberately doesn't say "a reviewer" or name one approval: on a third
+      // or later ship this figure is the sum of every earlier manual deduction,
+      // possibly by different reviewers.
+      `${formatHoursMin(carriedReduction)} has already been deducted by hand on previous approvals of this project. That time is still inside the tracked total above, so those deductions carry forward, giving ${formatHoursMin(baseline)}.`,
+    );
   }
 
   // Approved hours are cumulative across reships, and Project.approvedHours
@@ -862,10 +907,18 @@ export class SubmissionApprovalService {
         createdAt: { lt: submission.createdAt },
       },
       orderBy: { createdAt: 'desc' },
-      select: { approvedHours: true },
+      select: {
+        approvedHours: true,
+        hackatimeHours: true,
+        aiHours: true,
+        aiReductionApplied: true,
+      },
     });
     if (!lastApproved) return null;
-    return { approvedHours: lastApproved.approvedHours };
+    return {
+      approvedHours: lastApproved.approvedHours,
+      manualReduction: priorManualReduction(lastApproved),
+    };
   }
 
   private buildFraudReviewInfo(project: {

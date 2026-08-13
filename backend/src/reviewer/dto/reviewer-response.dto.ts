@@ -283,6 +283,11 @@ export class ProjectSubmissionSummary {
 
   @ApiProperty({ type: Number, nullable: true })
   approvedHours: number | null;
+
+  // Hours the reviewer took off by hand on top of the automatic AI reduction.
+  // A later reship carries this forward so the deduction isn't undone.
+  @ApiProperty()
+  manualReduction: number;
 }
 
 export class SubmissionDetailResponse {

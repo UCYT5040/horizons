@@ -23,7 +23,10 @@ import {
 const CLAIM_STALE_AFTER_MS = 90_000;
 import { FraudReviewService } from '../fraud-review/fraud-review.service';
 import { ManifestService } from '../manifest/manifest.service';
-import { SubmissionApprovalService } from '../submission-approval/submission-approval.service';
+import {
+  SubmissionApprovalService,
+  priorManualReduction,
+} from '../submission-approval/submission-approval.service';
 import { AUDIT_ACTIONS } from '../submission-approval/audit-actions';
 import { SlackService } from '../slack/slack.service';
 import { HackatimeService } from '../hackatime/hackatime.service';
@@ -393,6 +396,10 @@ export class ReviewerService {
         reviewedAt: s.reviewedAt,
         hackatimeHours: s.hackatimeHours,
         approvedHours: s.approvedHours,
+        // Hours this reviewer removed by hand on top of the automatic AI
+        // reduction. Computed here rather than in the client so the panel and
+        // the Airtable justification carry it forward from one definition.
+        manualReduction: priorManualReduction(s),
       }))
       .sort(
         (a, b) =>
