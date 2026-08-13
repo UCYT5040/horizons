@@ -8,6 +8,7 @@ import {
   IsNotEmpty,
   MaxLength,
   IsBoolean,
+  Min,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -20,6 +21,20 @@ export class ReviewSubmissionDto {
   @IsNumber()
   @IsOptional()
   approvedHours?: number;
+
+  // Hours Hackatime attributed to AI coding / non-coding categories, as shown
+  // in the review UI's hours breakdown. Snapshotted onto the submission so the
+  // Airtable justification can explain the AI reduction after the fact.
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  aiHours?: number;
+
+  // Whether the reviewer left the automatic "reduce AI hours to 1/3" checkbox
+  // ticked. False means they deliberately overrode it — the justification says so.
+  @IsBoolean()
+  @IsOptional()
+  aiReductionApplied?: boolean;
 
   @IsString()
   @IsOptional()

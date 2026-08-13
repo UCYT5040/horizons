@@ -858,6 +858,10 @@
 								onSentToAdminChange={handleSentToAdminChange}
 								hasAirtableRecord={!!currentSubmission.airtableRecId}
 								hackatimeHours={currentSubmission.hackatimeHours}
+								aiHours={hourBreakdown?.aiHours ?? null}
+								totalHours={hourBreakdown?.totalHours ?? null}
+								priorAiHours={currentSubmission.aiHours ?? null}
+								priorAiReductionApplied={currentSubmission.aiReductionApplied ?? null}
 								joeFraudPassed={currentSubmission.project.joeFraudPassed ?? null}
 								reviewPassed={currentSubmission.reviewPassed}
 								priorApprovedHours={currentSubmission.approvedHours}

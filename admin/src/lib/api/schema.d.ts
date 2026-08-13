@@ -4033,6 +4033,8 @@ export interface components {
             reviewedAt: string | null;
             approvedHours: number | null;
             hackatimeHours: number | null;
+            aiHours: number | null;
+            aiReductionApplied: boolean | null;
             userFeedback: string | null;
             reviewerAnalysis: string | null;
             description: string | null;
@@ -4058,6 +4060,8 @@ export interface components {
             /** @enum {string} */
             approvalStatus?: "pending" | "approved" | "rejected";
             approvedHours?: number;
+            aiHours?: number;
+            aiReductionApplied?: boolean;
             userFeedback?: string;
             hoursJustification?: string;
             adminComment?: string;

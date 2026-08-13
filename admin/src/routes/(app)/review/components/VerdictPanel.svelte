@@ -28,6 +28,18 @@
 		 *  override path. */
 		hasAirtableRecord?: boolean;
 		hackatimeHours: number | null;
+		/** Hours Hackatime attributed to AI coding / non-coding categories, from
+		 *  the live hour breakdown. null while it's still loading or unavailable. */
+		aiHours?: number | null;
+		/** Total hours from that same live breakdown. Paired with aiHours to get
+		 *  the AI share — the absolute figures aren't comparable to hackatimeHours. */
+		totalHours?: number | null;
+		/** AI hours recorded on the submission when it was last reviewed. */
+		priorAiHours?: number | null;
+		/** Whether the AI reduction checkbox was ticked the last time this
+		 *  submission was reviewed. null for submissions reviewed before the
+		 *  checkbox existed — those fall back to ticked. */
+		priorAiReductionApplied?: boolean | null;
 		joeFraudPassed?: boolean | null;
 		/** Reviewer's own decision — null when the reviewer hasn't voted yet. */
 		reviewPassed?: boolean | null;
@@ -55,6 +67,10 @@
 		onSentToAdminChange,
 		hasAirtableRecord = false,
 		hackatimeHours,
+		aiHours = null,
+		totalHours = null,
+		priorAiHours = null,
+		priorAiReductionApplied = null,
 		joeFraudPassed = null,
 		reviewPassed = null,
 		priorApprovedHours = null,
@@ -95,6 +111,94 @@
 	let reviewerManuallyEditedHours = $state(false);
 	let approvedHoursLocked = $state(true);
 	let sendEmail = $state(true);
+	// Ticked by default: AI-detected time is credited at a third. Untick only to
+	// grant the full tracked AI time — the justification records the override.
+	let reduceAiHours = $state(true);
+
+	// The breakdown's absolute hours are NOT comparable to hackatimeHours: the
+	// submission's figure is deduped and frozen at ship time, while the
+	// breakdown is a live, non-deduped query over the same projects. Only the
+	// AI *share* survives that mismatch (see HackatimeService.getProjectHourBreakdown),
+	// so take the ratio and apply it to the hours actually being approved.
+	let aiShare = $derived(
+		aiHours != null && totalHours != null && totalHours > 0
+			? Math.min(1, Math.max(0, aiHours / totalHours))
+			: null,
+	);
+	let liveAiHours = $derived(
+		aiShare != null && hackatimeHours != null ? hackatimeHours * aiShare : null,
+	);
+	// Re-submitting an unchanged verdict must not change the record. Once a
+	// submission has been reviewed, keep the snapshot its approved figure was
+	// derived from — the live breakdown grows as the user keeps coding, and
+	// re-deriving from it would invent adjustments nobody made.
+	// Set when the reviewer explicitly asks to re-derive from the live
+	// breakdown instead of the stored snapshot.
+	let useLiveAiBreakdown = $state(false);
+	let usingPriorSnapshot = $derived(
+		reviewPassed === true && priorAiHours != null && !useLiveAiBreakdown,
+	);
+	let effectiveAiHours = $derived(
+		usingPriorSnapshot
+			? Math.min(priorAiHours ?? 0, hackatimeHours ?? 0)
+			: liveAiHours,
+	);
+	// Set when the live breakdown has drifted away from the stored snapshot —
+	// surfaced so a reviewer re-opening an old verdict can see both figures and
+	// deliberately switch to the current one.
+	let driftedLiveAiHours = $derived(
+		usingPriorSnapshot &&
+			liveAiHours != null &&
+			Math.abs(liveAiHours - (effectiveAiHours ?? 0)) >= 0.5
+			? liveAiHours
+			: null,
+	);
+	let nonAiHours = $derived(
+		effectiveAiHours != null && hackatimeHours != null
+			? hackatimeHours - effectiveAiHours
+			: null,
+	);
+	let reducedAiHours = $derived(
+		effectiveAiHours != null ? effectiveAiHours / 3 : null,
+	);
+	// The hour count the checkbox implies: standard coding in full + a third of
+	// the AI time.
+	let computedApprovedHours = $derived(
+		reduceAiHours && nonAiHours != null && reducedAiHours != null
+			? Math.round((nonAiHours + reducedAiHours) * 100) / 100
+			: Math.round((hackatimeHours ?? 0) * 100) / 100,
+	);
+	// Approved hours are cumulative across reships and overwrite the project's
+	// balance, so a rising AI share on an update could compute below what was
+	// already granted and quietly claw credit back. Floor the default at the
+	// previous approval — a reviewer can still type something lower deliberately.
+	let heldAtPriorApproval = $derived(
+		priorReshipApprovedHours != null &&
+			computedApprovedHours < priorReshipApprovedHours - 0.05,
+	);
+	// Anything the field differs from this by is a manual reviewer adjustment.
+	let autoApprovedHours = $derived(
+		heldAtPriorApproval
+			? (priorReshipApprovedHours as number)
+			: computedApprovedHours,
+	);
+	// 0.05h ≈ 3min — the same tolerance buildFullJustification uses to decide
+	// whether to report a manual adjustment.
+	let manuallyAdjusted = $derived(
+		Math.abs(approvedHours - autoApprovedHours) >= 0.05,
+	);
+
+	function fmtH(hours: number): string {
+		return `${Math.round(hours * 100) / 100}h`;
+	}
+
+	// Re-apply the default whenever the inputs to it change (the AI breakdown
+	// loads after the submission does), unless the reviewer typed their own value.
+	$effect(() => {
+		const auto = autoApprovedHours;
+		if (reviewerManuallyEditedHours) return;
+		approvedHours = auto;
+	});
 
 	// Changes needed form fields
 	let changesComment = $state('');
@@ -146,6 +250,12 @@
 		approvedHours = reviewerApproved
 			? priorApprovedHours ?? hackatimeHours ?? 0
 			: hackatimeHours ?? 0;
+		// An already-reviewed submission keeps the toggle the reviewer chose;
+		// anything else starts ticked.
+		reduceAiHours = priorAiReductionApplied ?? true;
+		useLiveAiBreakdown = false;
+		// A prior verdict's hours stand as-is — don't let the auto-default
+		// overwrite what the last reviewer decided.
 		reviewerManuallyEditedHours = reviewerApproved;
 		approvedHoursLocked = true;
 		sendEmail = true;
@@ -232,6 +342,8 @@
 				body: {
 					approvalStatus: 'approved',
 					approvedHours,
+					aiHours: effectiveAiHours ?? 0,
+					aiReductionApplied: reduceAiHours,
 					hoursJustification: hoursJustification || undefined,
 					userFeedback: approveComment || undefined,
 					sendEmail,
@@ -315,6 +427,8 @@
 							userFeedback: approveComment,
 							hoursJustification,
 							approvedHours,
+							aiHours: effectiveAiHours ?? 0,
+							aiReductionApplied: reduceAiHours,
 						}
 					: { userFeedback: changesComment };
 			const { error } = await api.PUT('/api/reviewer/submissions/{id}/review', {
@@ -427,13 +541,13 @@
 			<div class="mb-3">
 				<label for="approved-hours" class="block text-xs font-semibold text-rv-dim mb-1">
 					Approved Hours
-					<span class="font-normal opacity-80 italic">(defaults to submitted hours)</span>
+					<span class="font-normal opacity-80 italic">(defaults to the calculation below)</span>
 				</label>
 				<div class="flex items-center gap-2">
 					<input
 						id="approved-hours"
 						type="number"
-						step="0.5"
+						step="0.01"
 						min="0"
 						bind:value={approvedHours}
 						disabled={approvedHoursLocked}
@@ -463,15 +577,96 @@
 							class="px-2.5 py-1.5 rounded-md text-[11px] font-semibold font-inherit cursor-pointer border border-rv-border bg-transparent text-rv-dim hover:text-rv-text hover:border-rv-accent transition-colors duration-150"
 							onclick={() => {
 								approvedHoursLocked = true;
-								approvedHours = hackatimeHours ?? 0;
 								reviewerManuallyEditedHours = false;
+								approvedHours = autoApprovedHours;
 							}}
-							title="Reset to submitted hours and lock"
+							title="Reset to the calculated default and lock"
 						>
 							Reset
 						</button>
 					{/if}
 				</div>
+
+				<!-- AI reduction toggle + where the number in the box comes from -->
+				<div class="mt-2 rounded-md border border-rv-border bg-rv-surface/50 px-2.5 py-2">
+					<label class="flex items-start gap-1.5 text-[11px] leading-snug text-rv-text cursor-pointer">
+						<input
+							type="checkbox"
+							bind:checked={reduceAiHours}
+							onchange={() => {
+								// Retoggling recomputes the default — the reviewer's own
+								// edit no longer applies to a different baseline.
+								reviewerManuallyEditedHours = false;
+								approvedHours = autoApprovedHours;
+							}}
+							class="accent-rv-accent mt-0.5"
+						/>
+						<span>
+							Reduce 'AI coding' hours to 1/3 of tracked time
+							<span class="text-rv-dim italic">(don't touch unless you know what you're doing)</span>
+						</span>
+					</label>
+
+					<div class="mt-1.5 pl-5 text-[11px] leading-relaxed text-rv-dim">
+						{#if hackatimeHours == null}
+							No tracked hours on this submission.
+						{:else if effectiveAiHours == null || nonAiHours == null || reducedAiHours == null}
+							{fmtH(hackatimeHours)} tracked · AI breakdown unavailable — approving the full tracked time.
+						{:else if effectiveAiHours < 0.05}
+							{fmtH(hackatimeHours)} tracked · no AI time detected, nothing to reduce.
+						{:else if reduceAiHours}
+							<span class="text-rv-text font-semibold">{fmtH(hackatimeHours)}</span> tracked,
+							of which <span class="text-rv-text font-semibold">{fmtH(effectiveAiHours)}</span> was AI
+							→ reduced to <span class="text-rv-text font-semibold">{fmtH(reducedAiHours)}</span>.
+							<br />
+							{fmtH(nonAiHours)} standard + {fmtH(reducedAiHours)} AI =
+							<span class="text-rv-text font-semibold">{fmtH(autoApprovedHours)}</span>
+						{:else}
+							<span class="text-rv-text font-semibold">{fmtH(hackatimeHours)}</span> tracked,
+							of which <span class="text-rv-text font-semibold">{fmtH(effectiveAiHours)}</span> was AI —
+							credited in full (reduction overridden).
+						{/if}
+							{#if heldAtPriorApproval}
+							<br />
+							<span class="text-amber-600 font-semibold">
+								Held at {fmtH(autoApprovedHours)} — already approved for this project.
+								The AI reduction alone would compute {fmtH(computedApprovedHours)}, which
+								would take back credit already granted.
+							</span>
+						{/if}
+						{#if manuallyAdjusted}
+							<br />
+							<span class="text-amber-600 font-semibold">
+								Manual adjustment: {fmtH(autoApprovedHours)} → {fmtH(approvedHours)}
+							</span>
+						{/if}
+						{#if usingPriorSnapshot}
+							<br />
+							<span class="opacity-80">AI figure from the original review.</span>
+							{#if driftedLiveAiHours != null}
+								<button
+									type="button"
+									class="ml-1 underline underline-offset-2 bg-transparent border-none p-0 text-[11px] font-inherit text-rv-accent cursor-pointer"
+									onclick={() => {
+										useLiveAiBreakdown = true;
+										reviewerManuallyEditedHours = false;
+										approvedHours = autoApprovedHours;
+									}}
+									title="Re-derive the default from the current Hackatime breakdown"
+								>
+									Live breakdown now says {fmtH(driftedLiveAiHours)} — use it
+								</button>
+							{/if}
+						{:else if aiShare != null && effectiveAiHours != null && effectiveAiHours >= 0.05}
+							<br />
+							<span class="opacity-80">
+								{Math.round(aiShare * 100)}% of logged time is AI, applied to the
+								{fmtH(hackatimeHours ?? 0)} tracked at submission.
+							</span>
+						{/if}
+					</div>
+				</div>
+
 				{#if priorYswsHoursShipped > 0}
 					<p class="mt-1 mb-0 text-[11px] text-rv-dim flex items-center gap-1.5">
 						<span>

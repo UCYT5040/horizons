@@ -410,6 +410,8 @@ export class ReviewerService {
       reviewedAt: submission.reviewedAt,
       approvedHours: submission.approvedHours,
       hackatimeHours: submission.hackatimeHours,
+      aiHours: submission.aiHours,
+      aiReductionApplied: submission.aiReductionApplied,
       // submission.hoursJustification stores the reviewer's user-facing feedback
       // (the DTO field `userFeedback` is persisted here — name is historical).
       userFeedback: renderMentions(submission.hoursJustification) ?? null,
@@ -671,6 +673,12 @@ export class ReviewerService {
     if (dto.userFeedback !== undefined) {
       fieldUpdates.hoursJustification = dto.userFeedback;
     }
+    if (dto.aiHours !== undefined) {
+      fieldUpdates.aiHours = dto.aiHours;
+    }
+    if (dto.aiReductionApplied !== undefined) {
+      fieldUpdates.aiReductionApplied = dto.aiReductionApplied;
+    }
     if (dto.hoursJustification !== undefined) {
       fieldUpdates.reviewerAnalysis = dto.hoursJustification;
     }
@@ -699,6 +707,11 @@ export class ReviewerService {
       auditChanges.previousStatus = submission.approvalStatus;
     if (dto.approvedHours !== undefined)
       auditChanges.approvedHours = dto.approvedHours;
+    if (dto.aiHours !== undefined) auditChanges.aiHours = dto.aiHours;
+    // Worth its own audit entry: unticking is a deliberate override of the
+    // automatic 1/3 AI reduction, and reviewers get asked about those.
+    if (dto.aiReductionApplied !== undefined)
+      auditChanges.aiReductionApplied = dto.aiReductionApplied;
     if (dto.userFeedback !== undefined)
       auditChanges.userFeedback = dto.userFeedback;
     if (dto.hoursJustification !== undefined)
@@ -845,6 +858,7 @@ export class ReviewerService {
 
     const hackatimeHours = submission.project.nowHackatimeHours || 0;
     const approvedHours = dto.approvedHours ?? hackatimeHours;
+
     const autoAnalysis = `Quick approved with ${approvedHours.toFixed(1)} hours.`;
     const reviewerAnalysisText = dto.hoursJustification || autoAnalysis;
 

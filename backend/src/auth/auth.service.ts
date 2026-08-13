@@ -680,6 +680,8 @@ export class AuthService {
               reviewedBy: _rb,
               airtableRecId: _ar,
               reviewerAnalysis: _ra,
+              aiHours: _ah,
+              aiReductionApplied: _ara,
               // Admin-queue escalation is internal — mirror the deny list in
               // ProjectsService.scopeSubmissionForUser.
               sentToAdminAt: _sa,
