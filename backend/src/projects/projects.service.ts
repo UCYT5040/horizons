@@ -90,6 +90,8 @@ export class ProjectsService {
     | 'reviewedBy'
     | 'airtableRecId'
     | 'reviewerAnalysis'
+    | 'aiHours'
+    | 'aiReductionApplied'
     | 'sentToAdminAt'
     | 'sentToAdminById'
     | 'sentToAdminNote'
@@ -102,6 +104,8 @@ export class ProjectsService {
       reviewedBy: _rb,
       airtableRecId: _ar,
       reviewerAnalysis: _ra,
+      aiHours: _ah,
+      aiReductionApplied: _ara,
       // Admin-queue escalation is internal — users must not learn their
       // submission was flagged for an admin look.
       sentToAdminAt: _sa,

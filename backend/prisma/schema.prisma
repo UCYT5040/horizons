@@ -163,6 +163,14 @@ model Submission {
   repoUrl            String?              @map("repo_url")
   approvedHours      Float?               @map("approved_hours")
   hackatimeHours     Float?               @map("hackatime_hours")
+  // Hours Hackatime attributed to AI-assisted / non-coding categories at the
+  // moment of review (see HackatimeService.AI_BREAKDOWN_CATEGORIES). Snapshotted
+  // from the live breakdown so the justification can be rebuilt later without
+  // re-querying Hackatime (whose numbers drift as the user keeps coding).
+  aiHours            Float?               @map("ai_hours")
+  // Whether the reviewer left the "reduce AI hours to 1/3" checkbox ticked.
+  // null = unknown (pre-dates the checkbox, or reviewed without breakdown data).
+  aiReductionApplied Boolean?             @map("ai_reduction_applied")
   hoursJustification String?              @map("hours_justification") @db.Text
   // Reconciled final outcome of both gates (reviewer + fraud).
   // Stays `pending` until the state machine finalizes via SubmissionApprovalService.

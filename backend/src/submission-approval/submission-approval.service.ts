@@ -48,6 +48,132 @@ interface PriorApprovedInfo {
   approvedHours: number | null;
 }
 
+// AI time snapshot taken at review time, plus whether the reviewer left the
+// automatic "credit AI time at 1/3" reduction switched on.
+interface AiAdjustmentInfo {
+  aiHours: number | null;
+  reductionApplied: boolean | null;
+}
+
+// Share of tracked AI time that still counts toward approved hours.
+const AI_CREDIT_FRACTION = 1 / 3;
+
+/**
+ * Approved hours the AI checkbox would produce on its own: non-AI time in full
+ * plus a third of the AI time. Anything the approved figure differs from this
+ * by is a manual adjustment the reviewer made on top.
+ */
+export function autoApprovedHours(
+  trackedHours: number,
+  aiHours: number,
+): number {
+  const ai = Math.min(Math.max(aiHours, 0), trackedHours);
+  return trackedHours - ai + ai * AI_CREDIT_FRACTION;
+}
+
+/**
+ * Origin the admin panel is served from. The gateway proxies /admin/* to the
+ * admin UI on the same host as the user-facing app, so FRONTEND_URL is the base
+ * for both. Mirrors the normalisation in reviewer.service.ts.
+ */
+function adminBaseUrl(): string {
+  const frontendUrl =
+    process.env.FRONTEND_URL || 'https://horizons.hackclub.com';
+  return /^https?:\/\//.test(frontendUrl)
+    ? frontendUrl
+    : `https://${frontendUrl}`;
+}
+
+/**
+ * The hours story: what Hackatime tracked, what the automatic AI reduction did
+ * to it, and what the reviewer changed by hand on top of that.
+ */
+function buildHoursNarrative(
+  hackatimeHours: number | null,
+  approvedHours: number,
+  ai?: AiAdjustmentInfo | null,
+  priorApproved?: PriorApprovedInfo | null,
+): string[] {
+  const lines: string[] = [];
+  const approved = formatHoursMin(approvedHours);
+  const priorApprovedHours = priorApproved?.approvedHours ?? null;
+  // Approved hours on a submission are the cumulative total for the project,
+  // but only the delta is paid out to Airtable (see updateAirtableRecord), so
+  // an update leads with all three figures — what this update adds, what was
+  // already approved, and the running total — in place of the plain opener.
+  // The delta is clamped at zero to match the payout, which never goes negative.
+  if (priorApproved) {
+    const deltaNote =
+      priorApprovedHours != null
+        ? `${formatHoursMin(Math.max(0, approvedHours - priorApprovedHours))} was approved in this update, and ${formatHoursMin(priorApprovedHours)} was already approved, for `
+        : '';
+    lines.push(
+      `This is an update to a previously approved submission of this project — ${deltaNote}${approved} approved on this project in total.`,
+    );
+  } else {
+    lines.push(`This project was approved for ${approved}.`);
+  }
+
+  if (hackatimeHours == null) {
+    lines.push(
+      `Hackatime tracked time for this project is unknown, so the hours were set by the reviewer.`,
+    );
+    return lines;
+  }
+
+  const tracked = formatHoursMin(hackatimeHours);
+  const aiHours =
+    ai?.aiHours != null && ai.aiHours > 0
+      ? Math.min(ai.aiHours, hackatimeHours)
+      : null;
+
+  // What the reviewer's settings imply before any manual edit.
+  let baseline: number;
+  if (aiHours == null) {
+    // No AI figure on record — submissions reviewed before the AI breakdown
+    // was captured, or projects with no AI time detected at all.
+    baseline = hackatimeHours;
+    lines.push(
+      `This user tracked ${tracked} on Hackatime for this project overall, with no AI coding time on record.`,
+    );
+  } else {
+    const nonAi = formatHoursMin(hackatimeHours - aiHours);
+    const aiTracked = formatHoursMin(aiHours);
+    if (ai?.reductionApplied === false) {
+      baseline = hackatimeHours;
+      lines.push(
+        `This user tracked ${tracked} on Hackatime for this project overall. ${aiTracked} AI coding and ${nonAi} standard coding. The reviewer manually overrode the automatic 1/3 reduction of AI hours, so the AI time was credited in full, giving ${formatHoursMin(baseline)}.`,
+      );
+    } else {
+      baseline = autoApprovedHours(hackatimeHours, aiHours);
+      const aiReduced = formatHoursMin(aiHours * AI_CREDIT_FRACTION);
+      lines.push(
+        `This user tracked ${tracked} on Hackatime for this project overall. ${aiTracked} AI coding (reduced to 1/3 → ${aiReduced}) and ${nonAi} standard coding, giving ${formatHoursMin(baseline)}.`,
+      );
+    }
+  }
+
+  // Approved hours are cumulative across reships, and Project.approvedHours
+  // (the user's balance) is overwritten with this figure. A rising AI share on
+  // an update can drag the computed total below what was already granted, which
+  // would silently claw back credit for work that was already signed off — so
+  // the baseline never falls below the previous approval.
+  if (priorApprovedHours != null && baseline < priorApprovedHours - 0.05) {
+    lines.push(
+      `That is below the hours already approved for this project, so the hours were held at ${formatHoursMin(priorApprovedHours)} and nothing further was added by this update — an update never removes credit already granted.`,
+    );
+    baseline = priorApprovedHours;
+  }
+
+  if (Math.abs(baseline - approvedHours) >= 0.05) {
+    lines.push(
+      `The reviewer then manually adjusted the hours from ${formatHoursMin(baseline)} to ${approved}.`,
+    );
+  } else {
+    lines.push('No further adjustment was made by the reviewer.');
+  }
+  return lines;
+}
 
 /**
  * Wrap the reviewer's analysis with boilerplate hours summary + fraud line + footer.
@@ -61,34 +187,19 @@ function buildFullJustification(
   reviewerSlackId: string | null,
   fraudReview?: FraudReviewInfo | null,
   priorApproved?: PriorApprovedInfo | null,
+  aiAdjustment?: AiAdjustmentInfo | null,
+  projectId?: number | null,
 ): string {
   const parts: string[] = [];
 
-  const tracked =
-    hackatimeHours != null ? formatHoursMin(hackatimeHours) : 'unknown';
-  const approved = formatHoursMin(approvedHours);
-  if (
-    hackatimeHours != null &&
-    Math.abs(hackatimeHours - approvedHours) < 0.05
-  ) {
-    parts.push(
-      `This user tracked ${tracked} on Hackatime. No adjustment was made.`,
-    );
-  } else {
-    parts.push(
-      `This user tracked ${tracked} on Hackatime. This was adjusted to ${approved} after review.`,
-    );
-  }
-
-  if (priorApproved) {
-    const hoursNote =
-      priorApproved.approvedHours != null
-        ? ` ${formatHoursMin(priorApproved.approvedHours)} was already approved.`
-        : '';
-    parts.push(
-      `This is an update to a previously approved submission of this project.${hoursNote}`,
-    );
-  }
+  parts.push(
+    ...buildHoursNarrative(
+      hackatimeHours,
+      approvedHours,
+      aiAdjustment,
+      priorApproved,
+    ),
+  );
 
   if (reviewerAnalysis.trim()) {
     parts.push('', reviewerAnalysis.trim());
@@ -117,6 +228,14 @@ function buildFullJustification(
   }
 
   parts.push(`Project was reviewed by @/${reviewerRef} on ${today}.`);
+
+  // Links back into the admin panel so anyone auditing this record in Airtable
+  // can jump straight to the project and to the review that produced it.
+  if (projectId) {
+    parts.push('');
+    parts.push(`Project: ${adminBaseUrl()}/admin/projects/${projectId}`);
+    parts.push(`Review: ${adminBaseUrl()}/admin/review/${projectId}`);
+  }
 
   return parts.join('\n');
 }
@@ -183,16 +302,24 @@ export class SubmissionApprovalService {
     });
     if (!submission || submission.approvalStatus !== 'approved') return;
 
-    // Rebuild the full justification if the reviewer edited it, using the
-    // stored hours so the "tracked → adjusted to" line is honest.
+    // Rebuild the full justification if the reviewer edited it OR touched
+    // anything the hours narrative reports on — the narrative quotes tracked,
+    // AI and approved hours, so an hours-only edit would otherwise leave
+    // Airtable asserting figures that no longer match the row. Reads the
+    // hours back off the submission (already written by ReviewerService)
+    // rather than the dto, so a partial edit still reads honestly.
+    const hoursNarrativeChanged =
+      dto.approvedHours !== undefined ||
+      dto.aiHours !== undefined ||
+      dto.aiReductionApplied !== undefined;
     let fullJustification: string | undefined;
-    if (dto.hoursJustification !== undefined) {
+    if (dto.hoursJustification !== undefined || hoursNarrativeChanged) {
       const reviewer = await this.prisma.user.findUnique({
         where: { userId: reviewerId },
         select: { slackUserId: true },
       });
       fullJustification = buildFullJustification(
-        dto.hoursJustification,
+        dto.hoursJustification ?? submission.reviewerAnalysis ?? '',
         submission.hackatimeHours,
         submission.approvedHours ?? 0,
         submission.project.user.slackUserId,
@@ -200,6 +327,11 @@ export class SubmissionApprovalService {
         reviewer?.slackUserId ?? null,
         this.buildFraudReviewInfo(submission.project),
         await this.getPriorApprovedInfo(submission),
+        {
+          aiHours: submission.aiHours,
+          reductionApplied: submission.aiReductionApplied,
+        },
+        submission.projectId,
       );
     }
 
@@ -314,6 +446,11 @@ export class SubmissionApprovalService {
         reviewer?.slackUserId ?? null,
         this.buildFraudReviewInfo(submission.project),
         await this.getPriorApprovedInfo(submission),
+        {
+          aiHours: submission.aiHours,
+          reductionApplied: submission.aiReductionApplied,
+        },
+        submission.projectId,
       );
       if (submission.airtableRecId) {
         await this.updateAirtableRecord(submission, {
@@ -490,6 +627,8 @@ export class SubmissionApprovalService {
       submissionId: number;
       projectId: number;
       hackatimeHours: number | null;
+      aiHours: number | null;
+      aiReductionApplied: boolean | null;
       createdAt: Date;
       playableUrl: string | null;
       repoUrl: string | null;
@@ -569,6 +708,8 @@ export class SubmissionApprovalService {
       submissionId: number;
       projectId: number;
       hackatimeHours: number | null;
+      aiHours: number | null;
+      aiReductionApplied: boolean | null;
       createdAt: Date;
       playableUrl: string | null;
       repoUrl: string | null;
@@ -618,6 +759,11 @@ export class SubmissionApprovalService {
       reviewer?.slackUserId ?? null,
       this.buildFraudReviewInfo(submission.project),
       await this.getPriorApprovedInfo(submission),
+      {
+        aiHours: submission.aiHours,
+        reductionApplied: submission.aiReductionApplied,
+      },
+      submission.projectId,
     );
 
     await this.syncProjectData(submission, {

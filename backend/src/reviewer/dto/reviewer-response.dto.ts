@@ -318,6 +318,14 @@ export class SubmissionDetailResponse {
   @ApiProperty({ type: Number, nullable: true })
   hackatimeHours: number | null;
 
+  // AI hours snapshot + reduction toggle recorded when the submission was
+  // last reviewed. Lets the verdict panel restore what the reviewer chose.
+  @ApiProperty({ type: Number, nullable: true })
+  aiHours: number | null;
+
+  @ApiProperty({ type: Boolean, nullable: true })
+  aiReductionApplied: boolean | null;
+
   @ApiProperty({ type: String, nullable: true })
   userFeedback: string | null;
 
