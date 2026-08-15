@@ -184,6 +184,8 @@ Full administrative operations. Accessible to `admin` role only.
 | PUT | `/users/:id/bypass-idv` | Admin | Toggle `bypassIdv` flag (skips the IDV check on submission) |
 | PUT | `/users/:id/ban` | Admin | Set/clear `banned` (+ optional `reason`). Banning deletes the user's active sessions; the `AuthGuard` and login callback reject banned users |
 | PUT | `/users/:id/slack` | Admin | Manually set `slackUserId` |
+| **Transactions** |||
+| GET | `/transactions` | Admin, Fulfiller | Transaction ledger with per-kind summary totals; filters `kind`, `userId`, `fulfilled`, `refunded`, `limit` (capped at 2000; uncapped by default so the ledger is complete). Fulfillers get this as their work queue — it is how transaction ids are discovered — which means they can enumerate buyer names and emails |
 | **Reviewer payouts** |||
 | GET | `/reviewer-payouts` | Admin | Per-reviewer payout summary: review counts split at the July 13 2026 rate cutoff (00:00 ET), unpaid counts, whole-block owed hours under the reviewer's current rate flags, carryover, total paid, flags |
 | GET | `/reviewer-payouts/:userId/history` | Admin | Past payouts for a reviewer (hours, counted reviews, rate applied, `refunded` from the backing transaction) |
@@ -240,9 +242,17 @@ Shop items, variants, purchases, and transaction management.
 | PUT | `/admin/variants/:id` | Admin | Update variant |
 | DELETE | `/admin/variants/:id` | Admin | Delete variant |
 | GET | `/admin/transactions` | Admin | List transactions (filter by shopId) |
+| GET | `/admin/transactions/:id` | Admin, Fulfiller | Full detail: purchase, shop context, buyer address + live balance, admin note |
 | DELETE | `/admin/transactions/:id` | Admin | Refund (delete transaction) |
-| PUT | `/admin/transactions/:id/fulfill` | Admin | Mark fulfilled (sends email) |
-| DELETE | `/admin/transactions/:id/fulfill` | Admin | Unmark fulfilled |
+| PUT | `/admin/transactions/:id/fulfill` | Admin, Fulfiller | Mark fulfilled |
+| DELETE | `/admin/transactions/:id/fulfill` | Admin, Fulfiller | Unmark fulfilled |
+| PUT | `/admin/transactions/:id/note` | Admin, Fulfiller | Save `adminNote` (empty string clears it) |
+
+`ShopAdminController` is `@Roles(Role.Admin)` at the class level. The four
+fulfiller-reachable routes above carry a handler-level
+`@Roles(Role.Admin, Role.Fulfiller)`, which fully overrides the class-level
+metadata (`RolesGuard` uses `getAllAndOverride([handler, class])`). Everything
+else on the controller — shop/item/variant CRUD and refunds — stays admin-only.
 
 **Purchase validation:**
 - Checks user is `verified_eligible` via external Hack Club API
@@ -494,7 +504,7 @@ Managed by Prisma. Schema at `prisma/schema.prisma` with 30+ migrations.
 | **Shop** | slug, description, isActive, isPublic | Shop containers |
 | **ShopItem** | shopId, name, cost, maxPerUser, isActive, imageUrl | Purchasable items |
 | **ShopItemVariant** | itemId, name, cost, isActive | Item variants |
-| **Transaction** | userId, kind, itemId, variantId, eventId, cost, isFulfilled, refundedAt, airtableRecId | Purchase records (mirrored to Airtable) |
+| **Transaction** | userId, kind, itemId, variantId, eventId, cost, isFulfilled, refundedAt, adminNote, airtableRecId | Purchase records (mirrored to Airtable). `adminNote` is fulfilment commentary written from the admin detail page — admin/fulfiller only, never returned to the buyer and not synced to Airtable |
 | **PinnedItem** | userId, itemId | User's pinned shop item |
 
 ### Other Models

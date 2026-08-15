@@ -129,6 +129,50 @@ private scopeUserData(user) {
 
 Birthday is fetched from the database to compute age, but the raw date is never included in the response.
 
+## Fulfillers
+
+Fulfillers are the people who physically ship shop orders. They are scoped **by
+endpoint, not by field**: on the surfaces they can reach they see exactly what an
+admin sees — the buyer's full name, email, complete mailing address, and current
+currency balance — because you cannot ship a package without those. There is no
+field-stripping layer for this role, and deliberately so.
+
+The containment is that there are only five endpoints they can reach at all:
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/admin/transactions` | The ledger — their work queue |
+| `GET /api/shop/admin/transactions/:id` | Transaction detail (purchase, buyer, address, balance, note) |
+| `PUT /api/shop/admin/transactions/:id/fulfill` | Mark fulfilled |
+| `DELETE /api/shop/admin/transactions/:id/fulfill` | Unmark fulfilled |
+| `PUT /api/shop/admin/transactions/:id/note` | Write the per-transaction `adminNote` |
+
+The ledger is deliberately included: it is the only way to discover the transaction
+ids the detail page is addressed by, so without it the role cannot do its job. The
+consequence is accepted and should be stated plainly — **a fulfiller can enumerate
+every buyer's name and email through the ledger.** This was an explicit product
+decision, not an oversight.
+
+Everything else 403s: refunds (`DELETE /api/shop/admin/transactions/:id`), hours
+adjustments, all shop/item/variant CRUD, users, projects, and the review queues.
+So a fulfiller can read buyer contact and shipping details and toggle fulfilment,
+but cannot see fraud/sus flags or ban state, cannot touch projects or submissions,
+and cannot move currency.
+
+`ShopAdminController` is `@Roles(Role.Admin)` at the class level; the four shop
+routes above carry a handler-level `@Roles(Role.Admin, Role.Fulfiller)` that
+overrides it. `GET /api/admin/transactions` is `@Roles(Role.Admin, Role.Fulfiller)`
+directly. Superadmin satisfies every check via `hasRole()`, as always.
+
+In the admin dashboard, fulfillers follow the same convention as reviewers: they see
+the full sidebar and the backend rejects whatever they may not reach, so links like
+Users and Projects land on 403 error states. Login drops them on `/admin/home` like
+everyone else, which errors because its stats endpoints are admin-only — the same
+thing a reviewer-only account sees today. Navigating to Transactions is the
+intended first move. The refund button on the detail page is hidden behind
+`hasRole(me?.roles, 'admin')` — that gating is real, not just cosmetic, since the
+backend rejects fulfiller refunds regardless.
+
 ## Admins
 
 Admins have **full access** to all data.
@@ -182,22 +226,25 @@ const projectAdminInclude = {
 
 ## Summary Table
 
-| Data | Public | User | Reviewer | Admin |
-|------|--------|------|----------|-------|
-| Own profile (name, email) | — | Yes | — | — |
-| Own address | — | `hasAddress` only | — | — |
-| Other user's name | Slack display name only, on shipped projects | No | Yes | Yes |
-| Other user's email | No | No | No | Yes |
-| Other user's age | No | No | Yes (computed) | Yes (raw birthday) |
-| Other user's country | No | No | Yes | Yes |
-| Other user's address (street/city/state/zip) | No | No | No | Yes |
-| Fraud/sus flags | No | No | No | Yes |
-| Admin comments | No | No | Read/write | Read/write |
-| Hours justification | No | No | Read/write | Read/write |
-| Audit logs | No | No | No | Yes |
-| Own projects/submissions | — | Yes | — | — |
-| Other projects (shipped, not fraud) | Title/desc/links/screenshot only | No | Queue only | Yes |
-| All projects/submissions | No | No | Queue only | Yes |
+| Data | Public | User | Reviewer | Fulfiller | Admin |
+|------|--------|------|----------|-----------|-------|
+| Own profile (name, email) | — | Yes | — | — | — |
+| Own address | — | `hasAddress` only | — | — | — |
+| Other user's name | Slack display name only, on shipped projects | No | Yes | Yes (any buyer, via the ledger) | Yes |
+| Other user's email | No | No | No | Yes (same) | Yes |
+| Other user's age | No | No | Yes (computed) | No | Yes (raw birthday) |
+| Other user's country | No | No | Yes | Yes (same) | Yes |
+| Other user's address (street/city/state/zip) | No | No | No | Yes (same) | Yes |
+| Other user's currency balance | No | No | No | Yes (same) | Yes |
+| Fraud/sus flags | No | No | No | No | Yes |
+| Admin comments | No | No | Read/write | Transaction note only | Read/write |
+| Hours justification | No | No | Read/write | No | Read/write |
+| Audit logs | No | No | No | No | Yes |
+| Own projects/submissions | — | Yes | — | — | — |
+| Other projects (shipped, not fraud) | Title/desc/links/screenshot only | No | Queue only | No | Yes |
+| All projects/submissions | No | No | Queue only | No | Yes |
+| Transaction ledger (browse all) | No | No | No | Yes | Yes |
+| Refund / reverse a transaction | No | No | No | No | Yes |
 
 ## Guidelines for New Endpoints
 
@@ -205,5 +252,10 @@ When adding new endpoints, follow these rules:
 
 - **User endpoints**: always filter by `userId`. Use `excludeAdminFields()` on any project/submission data. Never return address fields, fraud flags, or admin comments.
 - **Reviewer endpoints**: use `SCOPED_USER_SELECT` when fetching user data. Always pass through `scopeUserData()` before returning. Never expose email or raw birthday.
+- **Fulfiller endpoints**: scope by *endpoint*, not by field. Only widen a route to
+  `Role.Fulfiller` when the data on it is needed to physically ship an order. The
+  transaction ledger is the one listing endpoint they get, because it is their work queue.
+  Never widen a route that moves currency, exposes fraud/ban state, or reaches projects,
+  submissions, or the user directory.
 - **Admin endpoints**: use `projectAdminInclude` for full data access. No scoping needed.
 - **Never return** `hackatimeAccessToken` to any role — it's an internal credential.

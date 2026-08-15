@@ -19,22 +19,24 @@
 
     // Roles a superadmin may hand out. superadmin is intentionally excluded —
     // it's all-encompassing and can't be assigned through this UI.
-    const assignableRoles = ['admin', 'reviewer', 'event_viewer'] as const;
+    const assignableRoles = ['admin', 'reviewer', 'event_viewer', 'fulfiller'] as const;
 
     const roleBadgeClass: Record<string, string> = {
         superadmin: 'bg-purple-600/20 border-purple-500 text-purple-700 dark:text-purple-300',
         admin: 'bg-blue-600/20 border-blue-500 text-blue-700 dark:text-blue-300',
         reviewer: 'bg-green-600/20 border-green-500 text-green-700 dark:text-green-300',
         event_viewer: 'bg-amber-600/20 border-amber-500 text-amber-700 dark:text-amber-300',
+        fulfiller: 'bg-teal-600/20 border-teal-500 text-teal-700 dark:text-teal-300',
         user: 'bg-ds-surface2 border-ds-border text-ds-text-secondary'
     };
 
-    const roleOrder = ['superadmin', 'admin', 'reviewer', 'event_viewer', 'user'];
+    const roleOrder = ['superadmin', 'admin', 'reviewer', 'event_viewer', 'fulfiller', 'user'];
     const roleLabel: Record<string, string> = {
         superadmin: 'Superadmins',
         admin: 'Admins',
         reviewer: 'Reviewers',
         event_viewer: 'Event Viewers',
+        fulfiller: 'Fulfillers',
         user: 'Users'
     };
 
@@ -191,6 +193,13 @@
                                     disabled={pendingUserId === result.userId}
                                 >
                                     Make Event Viewer
+                                </Button>
+                                <Button
+                                    class="bg-teal-600/20 border-teal-500 text-teal-700 dark:text-teal-300 hover:bg-teal-600/30"
+                                    onclick={() => updateRoles(result.userId, ['fulfiller'])}
+                                    disabled={pendingUserId === result.userId}
+                                >
+                                    Make Fulfiller
                                 </Button>
                                 <Button
                                     class="bg-blue-600/20 border-blue-500 text-blue-700 dark:text-blue-300 hover:bg-blue-600/30"

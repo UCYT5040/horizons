@@ -154,7 +154,12 @@ export class AdminService {
 
     const data: Prisma.SubmissionUpdateInput = {};
     const changes: Record<string, unknown> = {};
-    const stringFields = ['description', 'playableUrl', 'repoUrl', 'screenshotUrl'] as const;
+    const stringFields = [
+      'description',
+      'playableUrl',
+      'repoUrl',
+      'screenshotUrl',
+    ] as const;
     for (const field of stringFields) {
       const next = dto[field];
       if (next !== undefined && next !== existing[field]) {
@@ -355,7 +360,9 @@ export class AdminService {
   } | null = null;
   private manifestSummaryInFlight: Promise<ManifestSummary> | null = null;
 
-  async getProjectsManifestSummary(forceRefresh = false): Promise<ManifestSummary> {
+  async getProjectsManifestSummary(
+    forceRefresh = false,
+  ): Promise<ManifestSummary> {
     if (
       !forceRefresh &&
       this.manifestSummaryCache &&
@@ -418,9 +425,7 @@ export class AdminService {
         if (priorYswsHoursShipped <= 0) continue;
         const priorYswsNames = Array.from(
           new Set(
-            nonHorizons
-              .map((s) => s.yswsName)
-              .filter((n): n is string => !!n),
+            nonHorizons.map((s) => s.yswsName).filter((n): n is string => !!n),
           ),
         );
         entries.push({ projectId, priorYswsHoursShipped, priorYswsNames });
@@ -501,7 +506,8 @@ export class AdminService {
     for (const key of keys) {
       if (dto[key] !== undefined) {
         const value = dto[key] as any;
-        data[key] = typeof value === 'string' && value.trim() === '' ? null : value;
+        data[key] =
+          typeof value === 'string' && value.trim() === '' ? null : value;
       }
     }
 
@@ -509,8 +515,12 @@ export class AdminService {
     // lives on the latest submission's hoursJustification (set during review or
     // by the secondary fraud-review flow). Enabling requires that reason to be
     // present so users aren't told "permanently rejected" with no explanation.
-    let permRejectAuditAction: 'perm_reject' | 'perm_reject_cleared' | null = null;
-    if (dto.permReject !== undefined && dto.permReject !== existing.permReject) {
+    let permRejectAuditAction: 'perm_reject' | 'perm_reject_cleared' | null =
+      null;
+    if (
+      dto.permReject !== undefined &&
+      dto.permReject !== existing.permReject
+    ) {
       if (dto.permReject === true) {
         const latest = existing.submissions[0];
         const latestReason = latest?.hoursJustification?.trim();
@@ -630,8 +640,7 @@ export class AdminService {
     const projects = names
       .map((name) => ({
         name,
-        totalHours:
-          Math.round(((filtered.get(name) ?? 0) / 3600) * 10) / 10,
+        totalHours: Math.round(((filtered.get(name) ?? 0) / 3600) * 10) / 10,
       }))
       .sort((a, b) => b.totalHours - a.totalHours);
 
@@ -821,16 +830,27 @@ export class AdminService {
     // UTC and snapshots the prior day). Today is mid-stream and not in the
     // snapshot table, so this is genuinely yesterday's count.
     const dauData = historical.dau;
-    const dauYesterday = dauData.length > 0 ? dauData[dauData.length - 1].value : 0;
+    const dauYesterday =
+      dauData.length > 0 ? dauData[dauData.length - 1].value : 0;
     const last7Dau = dauData.slice(-7);
     const last30Dau = dauData;
-    const avg7 = last7Dau.length > 0 ? last7Dau.reduce((s, d) => s + d.value, 0) / last7Dau.length : 0;
-    const avg30 = last30Dau.length > 0 ? last30Dau.reduce((s, d) => s + d.value, 0) / last30Dau.length : 0;
+    const avg7 =
+      last7Dau.length > 0
+        ? last7Dau.reduce((s, d) => s + d.value, 0) / last7Dau.length
+        : 0;
+    const avg30 =
+      last30Dau.length > 0
+        ? last30Dau.reduce((s, d) => s + d.value, 0) / last30Dau.length
+        : 0;
     const prev7Dau = dauData.slice(-14, -7);
-    const avgPrev7 = prev7Dau.length > 0 ? prev7Dau.reduce((s, d) => s + d.value, 0) / prev7Dau.length : 0;
-    const dauGrowthPercent = avgPrev7 > 0
-      ? Math.round(((avg7 - avgPrev7) / avgPrev7) * 10000) / 100
-      : 0;
+    const avgPrev7 =
+      prev7Dau.length > 0
+        ? prev7Dau.reduce((s, d) => s + d.value, 0) / prev7Dau.length
+        : 0;
+    const dauGrowthPercent =
+      avgPrev7 > 0
+        ? Math.round(((avg7 - avgPrev7) / avgPrev7) * 10000) / 100
+        : 0;
 
     const dauPerEvent = await this.computeDauPerEvent();
 
@@ -894,7 +914,8 @@ export class AdminService {
     const slugToCount = new Map<string, number>();
     for (const row of rows) {
       const slug = row.metric.slice('dau_event.'.length);
-      const count = typeof row.value === 'number' ? row.value : Number(row.value) || 0;
+      const count =
+        typeof row.value === 'number' ? row.value : Number(row.value) || 0;
       if (count > 0) slugToCount.set(slug, count);
     }
 
@@ -902,7 +923,13 @@ export class AdminService {
 
     const events = await this.prisma.event.findMany({
       where: { slug: { in: [...slugToCount.keys()] } },
-      select: { eventId: true, title: true, slug: true, startDate: true, endDate: true },
+      select: {
+        eventId: true,
+        title: true,
+        slug: true,
+        startDate: true,
+        endDate: true,
+      },
     });
 
     return events
@@ -935,19 +962,33 @@ export class AdminService {
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.user.count({ where: { hackatimeAccount: { not: null } } }),
-      this.prisma.user.count({ where: { projects: { some: { deletedAt: null } } } }),
       this.prisma.user.count({
-        where: { projects: { some: { deletedAt: null, nowHackatimeProjects: { isEmpty: false } } } },
+        where: { projects: { some: { deletedAt: null } } },
       }),
       this.prisma.user.count({
-        where: { projects: { some: { deletedAt: null, nowHackatimeHours: { gte: 10 } } } },
+        where: {
+          projects: {
+            some: { deletedAt: null, nowHackatimeProjects: { isEmpty: false } },
+          },
+        },
       }),
       this.prisma.user.count({
-        where: { projects: { some: { deletedAt: null, submissions: { some: {} } } } },
+        where: {
+          projects: {
+            some: { deletedAt: null, nowHackatimeHours: { gte: 10 } },
+          },
+        },
+      }),
+      this.prisma.user.count({
+        where: {
+          projects: { some: { deletedAt: null, submissions: { some: {} } } },
+        },
       }),
       this.countUsersWithSubmittedHoursGte(10),
       this.prisma.user.count({
-        where: { projects: { some: { deletedAt: null, approvedHours: { gte: 1 } } } },
+        where: {
+          projects: { some: { deletedAt: null, approvedHours: { gte: 1 } } },
+        },
       }),
       this.countUsersWithApprovedHoursGte(10),
       // "Can buy ticket" is scoped to each user's pinned event: their approved
@@ -1101,7 +1142,9 @@ export class AdminService {
     }));
   }
 
-  private async countUsersWithApprovedHoursGte(threshold: number): Promise<number> {
+  private async countUsersWithApprovedHoursGte(
+    threshold: number,
+  ): Promise<number> {
     const result = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
       SELECT COUNT(*) as count FROM (
         SELECT u.user_id
@@ -1118,7 +1161,9 @@ export class AdminService {
   // SUM(now_hackatime_hours) restricted to projects whose latest submission
   // isn't rejected. Matches the `submittedExcludingRejected` distribution mode
   // so the funnel step and chart agree on the approved→rejected case.
-  private async countUsersWithSubmittedHoursGte(threshold: number): Promise<number> {
+  private async countUsersWithSubmittedHoursGte(
+    threshold: number,
+  ): Promise<number> {
     const result = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
       SELECT COUNT(*) as count FROM (
         SELECT p.user_id
@@ -1162,13 +1207,13 @@ export class AdminService {
     ]);
 
     const olderUsers = totalUsers - newLast7Days;
-    const growthPercent = olderUsers > 0
-      ? Math.round((newLast7Days / olderUsers) * 10000) / 100
-      : 0;
+    const growthPercent =
+      olderUsers > 0
+        ? Math.round((newLast7Days / olderUsers) * 10000) / 100
+        : 0;
 
     return { totalUsers, newLast30Days, newLast7Days, growthPercent };
   }
-
 
   private async computeSignups() {
     const total = await this.prisma.user.count();
@@ -1499,7 +1544,9 @@ export class AdminService {
         _count: { _all: true },
         where: {
           utmSource: { not: null },
-          projects: { some: { deletedAt: null, nowHackatimeHours: { gte: 10 } } },
+          projects: {
+            some: { deletedAt: null, nowHackatimeHours: { gte: 10 } },
+          },
         },
       }),
     ]);
@@ -1520,7 +1567,6 @@ export class AdminService {
       })),
     };
   }
-
 
   async getEventStats(slug: string) {
     const event = await this.prisma.event.findUnique({
@@ -1570,7 +1616,9 @@ export class AdminService {
     // breakdown (both Hackatime-activity-derived). Today's value would be a
     // partial mid-stream count and wouldn't reconcile.
     const dauRow = await this.prisma.historicalMetric.findUnique({
-      where: { date_metric: { date: yesterdayStart, metric: `dau_event.${slug}` } },
+      where: {
+        date_metric: { date: yesterdayStart, metric: `dau_event.${slug}` },
+      },
     });
     const dauYesterday = dauRow
       ? typeof dauRow.value === 'number'
@@ -1591,7 +1639,9 @@ export class AdminService {
     `;
 
     // Cumulative pinned count over time
-    let cumulative = event._count.pinnedBy - pinnedOverTime.reduce((s, d) => s + Number(d.count), 0);
+    let cumulative =
+      event._count.pinnedBy -
+      pinnedOverTime.reduce((s, d) => s + Number(d.count), 0);
     const pinnedTimeline = pinnedOverTime.map((d) => {
       cumulative += Number(d.count);
       return {
@@ -2532,7 +2582,10 @@ export class AdminService {
    * unset or the upstream call fails, so the projects page degrades gracefully.
    */
   async getPriorityQueue() {
-    if (this.priorityQueueCache && this.priorityQueueCache.expiresAt > Date.now()) {
+    if (
+      this.priorityQueueCache &&
+      this.priorityQueueCache.expiresAt > Date.now()
+    ) {
       return this.priorityQueueCache.data;
     }
 
@@ -2593,7 +2646,15 @@ export class AdminService {
     return this.prisma.user.findMany({
       where: {
         NOT: {
-          roles: { hasSome: ['admin', 'reviewer', 'event_viewer', 'superadmin'] },
+          roles: {
+            hasSome: [
+              'admin',
+              'reviewer',
+              'event_viewer',
+              'fulfiller',
+              'superadmin',
+            ],
+          },
         },
         OR: [
           { email: { contains: searchTerm, mode: 'insensitive' } },
@@ -2617,7 +2678,15 @@ export class AdminService {
   async getElevatedUsers() {
     return this.prisma.user.findMany({
       where: {
-        roles: { hasSome: ['admin', 'reviewer', 'event_viewer', 'superadmin'] },
+        roles: {
+          hasSome: [
+            'admin',
+            'reviewer',
+            'event_viewer',
+            'fulfiller',
+            'superadmin',
+          ],
+        },
       },
       select: {
         userId: true,
@@ -2642,7 +2711,13 @@ export class AdminService {
 
     // Normalize: dedupe and enforce the assignable set. Superadmin is never
     // assignable via this endpoint (it's all-encompassing and set out-of-band).
-    const assignable = ['user', 'admin', 'reviewer', 'event_viewer'];
+    const assignable = [
+      'user',
+      'admin',
+      'reviewer',
+      'event_viewer',
+      'fulfiller',
+    ];
     const nextRoles = [...new Set(roles)];
 
     if (nextRoles.length === 0) {
@@ -3067,9 +3142,7 @@ export class AdminService {
             existing.nowHackatimeProjects?.length
           ) {
             const existingSet = new Set(existing.nowHackatimeProjects);
-            const overlap = hackatimeProjects.filter((n) =>
-              existingSet.has(n),
-            );
+            const overlap = hackatimeProjects.filter((n) => existingSet.has(n));
             if (overlap.length > 0) {
               hasOverlap = true;
               overlapReason = `Matching hackatime project(s): ${overlap.join(', ')}`;
@@ -3094,9 +3167,7 @@ export class AdminService {
           projectTitle = hackatimeProjects[0];
         } else if (codeUrl) {
           // Extract repo name from GitHub URL
-          const match = codeUrl.match(
-            /github\.com\/[^/]+\/([^/?#]+)/,
-          );
+          const match = codeUrl.match(/github\.com\/[^/]+\/([^/?#]+)/);
           projectTitle = match ? match[1] : 'Imported Project';
         } else {
           projectTitle = 'Imported Project';
@@ -3109,9 +3180,7 @@ export class AdminService {
             userId: user.userId,
             projectTitle,
             projectType: 'web_playable',
-            description: description
-              ? description.substring(0, 500)
-              : null,
+            description: description ? description.substring(0, 500) : null,
             repoUrl: codeUrl || null,
             nowHackatimeProjects: hackatimeProjects,
           },
@@ -3122,8 +3191,7 @@ export class AdminService {
         results.errors.push({
           row: rowNum,
           email,
-          message:
-            error instanceof Error ? error.message : 'Unknown error',
+          message: error instanceof Error ? error.message : 'Unknown error',
         });
       }
     }
@@ -3279,16 +3347,15 @@ export class AdminService {
       firstName: user.firstName,
       lastName: user.lastName,
       slackId: user.slackUserId ?? '',
-      displayName: (user.slackUserId && displayNames.get(user.slackUserId)) || '',
+      displayName:
+        (user.slackUserId && displayNames.get(user.slackUserId)) || '',
       signedUpAt: user.createdAt.toISOString(),
       hackatimeLinkedAt: hackatimeLinkMap.get(user.userId)?.toISOString() ?? '',
       hackatimeProjectLink: user.projects.filter(
         (p) => !p.nowHackatimeProjects?.length,
       ).length,
-      firstProjectAt:
-        user.projects[0]?.createdAt?.toISOString() ?? '',
-      firstSubmissionAt:
-        submissionMap.get(user.userId)?.toISOString() ?? '',
+      firstProjectAt: user.projects[0]?.createdAt?.toISOString() ?? '',
+      firstSubmissionAt: submissionMap.get(user.userId)?.toISOString() ?? '',
       approvedHours: approvedHoursMap.get(user.userId) ?? 0,
       hoursInReview: hoursInReviewMap.get(user.userId) ?? 0,
       unsubmittedHours: unsubmittedHoursMap.get(user.userId) ?? 0,
@@ -3363,9 +3430,14 @@ export class AdminService {
     //   submittedHours     — now_hackatime_hours for projects with ≥1 submission of
     //                        any status (assumes the user will keep iterating until
     //                        approval). Overlaps with approved/in-review by design.
-    const [approvedHoursRows, hoursInReviewRows, unsubmittedHoursRows, submittedHoursRows, trackedHoursRows] =
-      await Promise.all([
-        this.prisma.$queryRaw<{ user_id: number; hours: number }[]>`
+    const [
+      approvedHoursRows,
+      hoursInReviewRows,
+      unsubmittedHoursRows,
+      submittedHoursRows,
+      trackedHoursRows,
+    ] = await Promise.all([
+      this.prisma.$queryRaw<{ user_id: number; hours: number }[]>`
           SELECT p.user_id, COALESCE(SUM(s.approved_hours), 0) AS hours
           FROM submissions s
           JOIN projects p ON p.project_id = s.project_id
@@ -3380,7 +3452,7 @@ export class AdminService {
             )
           GROUP BY p.user_id
         `,
-        this.prisma.$queryRaw<{ user_id: number; hours: number }[]>`
+      this.prisma.$queryRaw<{ user_id: number; hours: number }[]>`
           SELECT p.user_id, COALESCE(SUM(p.now_hackatime_hours), 0) AS hours
           FROM projects p
           WHERE p.user_id = ANY(${userIds}::int[])
@@ -3397,7 +3469,7 @@ export class AdminService {
             )
           GROUP BY p.user_id
         `,
-        this.prisma.$queryRaw<{ user_id: number; hours: number }[]>`
+      this.prisma.$queryRaw<{ user_id: number; hours: number }[]>`
           SELECT p.user_id, COALESCE(SUM(p.now_hackatime_hours), 0) AS hours
           FROM projects p
           WHERE p.user_id = ANY(${userIds}::int[])
@@ -3407,7 +3479,7 @@ export class AdminService {
             )
           GROUP BY p.user_id
         `,
-        this.prisma.$queryRaw<{ user_id: number; hours: number }[]>`
+      this.prisma.$queryRaw<{ user_id: number; hours: number }[]>`
           SELECT p.user_id, COALESCE(SUM(p.now_hackatime_hours), 0) AS hours
           FROM projects p
           WHERE p.user_id = ANY(${userIds}::int[])
@@ -3417,20 +3489,30 @@ export class AdminService {
             )
           GROUP BY p.user_id
         `,
-        this.prisma.$queryRaw<{ user_id: number; hours: number }[]>`
+      this.prisma.$queryRaw<{ user_id: number; hours: number }[]>`
           SELECT user_id, COALESCE(SUM(now_hackatime_hours), 0) AS hours
           FROM projects
           WHERE user_id = ANY(${userIds}::int[])
             AND deleted_at IS NULL
           GROUP BY user_id
         `,
-      ]);
+    ]);
 
-    const approvedHoursMap = new Map(approvedHoursRows.map((r) => [r.user_id, Number(r.hours)]));
-    const hoursInReviewMap = new Map(hoursInReviewRows.map((r) => [r.user_id, Number(r.hours)]));
-    const unsubmittedHoursMap = new Map(unsubmittedHoursRows.map((r) => [r.user_id, Number(r.hours)]));
-    const submittedHoursMap = new Map(submittedHoursRows.map((r) => [r.user_id, Number(r.hours)]));
-    const trackedHoursMap = new Map(trackedHoursRows.map((r) => [r.user_id, Number(r.hours)]));
+    const approvedHoursMap = new Map(
+      approvedHoursRows.map((r) => [r.user_id, Number(r.hours)]),
+    );
+    const hoursInReviewMap = new Map(
+      hoursInReviewRows.map((r) => [r.user_id, Number(r.hours)]),
+    );
+    const unsubmittedHoursMap = new Map(
+      unsubmittedHoursRows.map((r) => [r.user_id, Number(r.hours)]),
+    );
+    const submittedHoursMap = new Map(
+      submittedHoursRows.map((r) => [r.user_id, Number(r.hours)]),
+    );
+    const trackedHoursMap = new Map(
+      trackedHoursRows.map((r) => [r.user_id, Number(r.hours)]),
+    );
 
     const slackIds = pins
       .map((p) => p.user.slackUserId)
@@ -3446,7 +3528,7 @@ export class AdminService {
       ).length;
       return {
         'Slack ID': user.slackUserId ?? '',
-        'Email': user.email,
+        Email: user.email,
         'Display Name': slackDisplay,
         'Signed up date': user.createdAt.toISOString(),
         'Approved hours': approvedHoursMap.get(user.userId) ?? 0,
@@ -3687,7 +3769,8 @@ export class AdminService {
       summary.totalSpent += spent;
       if (row.kind === 'ShopItem') summary.shopCount = count;
       else if (row.kind === 'EventTicket') summary.ticketCount = count;
-      else if (row.kind === 'AdminAdjustment') summary.adminAdjustmentCount = count;
+      else if (row.kind === 'AdminAdjustment')
+        summary.adminAdjustmentCount = count;
     }
     summary.totalSpent = Math.round(summary.totalSpent * 10) / 10;
 
@@ -3816,9 +3899,7 @@ export class AdminService {
     },
   } as const;
 
-  private shapeFraudReviewProject(
-    p: any,
-  ): {
+  private shapeFraudReviewProject(p: any): {
     projectId: number;
     projectTitle: string;
     projectType: string;
@@ -3943,10 +4024,9 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const ticketStatuses = await computeUserTicketStatuses(
-      this.prisma,
-      [...new Set(projects.map((p) => p.user.userId))],
-    );
+    const ticketStatuses = await computeUserTicketStatuses(this.prisma, [
+      ...new Set(projects.map((p) => p.user.userId)),
+    ]);
 
     return projects.map((p) => {
       const latest = p.submissions[0] ?? null;
@@ -4241,5 +4321,4 @@ export class AdminService {
       project: this.shapeFraudReviewProject(updated),
     };
   }
-
 }

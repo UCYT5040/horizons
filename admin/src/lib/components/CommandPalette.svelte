@@ -243,7 +243,7 @@
 					key: `t${e.transactionId}`,
 					title: e.itemDescription,
 					subtitle: `${fullName(e.user)}${slackQ !== null && e.user.slackUsername ? ` · @${e.user.slackUsername}` : ''} · ${e.user.email} · #${e.transactionId}`,
-					href: `${base}/transactions?q=${e.transactionId}`,
+					href: `${base}/transactions/${e.transactionId}`,
 				}));
 		}
 		// users — already filtered server-side (matches Slack display name too)

@@ -413,6 +413,9 @@ model Transaction {
   refundedAt      DateTime?        @map("refunded_at")
   createdAt       DateTime         @default(now()) @map("created_at")
   airtableRecId   String?          @map("airtable_rec_id")
+  // Fulfilment commentary, written from the admin transaction detail page by
+  // admins and fulfillers. Never exposed to the purchasing user.
+  adminNote       String?          @map("admin_note") @db.VarChar(1000)
   user            User             @relation(fields: [userId], references: [userId], onDelete: Cascade)
   item            ShopItem?        @relation(fields: [itemId], references: [itemId], onDelete: Cascade)
   variant         ShopItemVariant? @relation(fields: [variantId], references: [variantId], onDelete: SetNull)

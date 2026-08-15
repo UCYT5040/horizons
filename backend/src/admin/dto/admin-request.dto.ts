@@ -66,7 +66,7 @@ export class ToggleSubmissionsFrozenDto {
 export class UpdateUserRoleDto {
   @ApiProperty({
     isArray: true,
-    enum: ['user', 'admin', 'reviewer', 'event_viewer'],
+    enum: ['user', 'admin', 'reviewer', 'event_viewer', 'fulfiller'],
     description:
       'Full set of roles to assign. Superadmin cannot be assigned here.',
   })
@@ -74,8 +74,10 @@ export class UpdateUserRoleDto {
   @ArrayNotEmpty()
   @ArrayUnique()
   @IsString({ each: true })
-  @IsIn(['user', 'admin', 'reviewer', 'event_viewer'], { each: true })
-  roles: ('user' | 'admin' | 'reviewer' | 'event_viewer')[];
+  @IsIn(['user', 'admin', 'reviewer', 'event_viewer', 'fulfiller'], {
+    each: true,
+  })
+  roles: ('user' | 'admin' | 'reviewer' | 'event_viewer' | 'fulfiller')[];
 }
 
 export class AdjustUserHoursDto {
@@ -111,7 +113,8 @@ export class PermRejectProjectDto {
   reason: string;
 
   @ApiPropertyOptional({
-    description: 'Internal-only note for future admin context. Not shown to the user.',
+    description:
+      'Internal-only note for future admin context. Not shown to the user.',
     maxLength: 1000,
   })
   @IsOptional()

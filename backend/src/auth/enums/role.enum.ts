@@ -3,5 +3,6 @@ export enum Role {
   Admin = 'admin',
   Reviewer = 'reviewer',
   EventViewer = 'event_viewer',
+  Fulfiller = 'fulfiller',
   Superadmin = 'superadmin',
 }

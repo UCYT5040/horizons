@@ -21,6 +21,7 @@ import { CreateVariantDto } from './dto/create-variant.dto';
 import { UpdateVariantDto } from './dto/update-variant.dto';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
+import { SaveTransactionNoteDto } from './dto/save-transaction-note.dto';
 import {
   ShopResponse,
   ShopItemResponse,
@@ -31,6 +32,7 @@ import {
   BalanceResponse,
   UserTransactionResponse,
   AdminTransactionResponse,
+  TransactionDetailResponse,
   RefundResponse,
   PurchaseResponse,
   PinnedItemResponse,
@@ -220,6 +222,30 @@ export class ShopAdminController {
     return this.shopService.getAllTransactions(parsedShopId);
   }
 
+  // Handler-level @Roles fully overrides the class-level @Roles(Role.Admin) —
+  // RolesGuard reads the metadata with getAllAndOverride([handler, class]).
+  // Fulfillers get the detail view, the fulfil toggle and the note, and
+  // nothing else on this controller. Refunds stay admin-only.
+  @Get('transactions/:id')
+  @Roles(Role.Admin, Role.Fulfiller)
+  @ApiOkResponse({ type: TransactionDetailResponse })
+  async getTransactionDetail(@Param('id', ParseIntPipe) transactionId: number) {
+    return this.shopService.getTransactionDetail(transactionId);
+  }
+
+  @Put('transactions/:id/note')
+  @Roles(Role.Admin, Role.Fulfiller)
+  @ApiOkResponse({ type: TransactionDetailResponse })
+  async saveTransactionNote(
+    @Param('id', ParseIntPipe) transactionId: number,
+    @Body() saveTransactionNoteDto: SaveTransactionNoteDto,
+  ) {
+    return this.shopService.saveTransactionNote(
+      transactionId,
+      saveTransactionNoteDto,
+    );
+  }
+
   @Delete('transactions/:id')
   @ApiOkResponse({ type: RefundResponse })
   async refundTransaction(@Param('id', ParseIntPipe) transactionId: number) {
@@ -227,6 +253,7 @@ export class ShopAdminController {
   }
 
   @Put('transactions/:id/fulfill')
+  @Roles(Role.Admin, Role.Fulfiller)
   @ApiOkResponse({ type: AdminTransactionResponse })
   async markTransactionFulfilled(
     @Param('id', ParseIntPipe) transactionId: number,
@@ -235,6 +262,7 @@ export class ShopAdminController {
   }
 
   @Delete('transactions/:id/fulfill')
+  @Roles(Role.Admin, Role.Fulfiller)
   @ApiOkResponse({ type: AdminTransactionResponse })
   async unfulfillTransaction(@Param('id', ParseIntPipe) transactionId: number) {
     return this.shopService.unfulfillTransaction(transactionId);

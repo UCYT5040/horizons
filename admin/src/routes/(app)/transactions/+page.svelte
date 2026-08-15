@@ -5,8 +5,10 @@
 	import { User, Package } from 'lucide-svelte';
 	import { Button, TextField, Tab, Card, Select } from '$lib/components';
 	import { api } from '$lib/api';
+	import { base } from '$app/paths';
+	import { kindLabel, kindColor, type TransactionKind } from '$lib/transactionKind';
 
-	type Kind = 'ShopItem' | 'EventTicket' | 'AdminAdjustment';
+	type Kind = TransactionKind;
 
 	interface LedgerEntry {
 		transactionId: number;
@@ -273,20 +275,6 @@
 			hour: '2-digit',
 			minute: '2-digit',
 		});
-	}
-
-	function kindLabel(k: Kind): string {
-		if (k === 'ShopItem') return 'Shop';
-		if (k === 'AdminAdjustment') return 'Admin Adj';
-		return 'Ticket';
-	}
-
-	function kindColor(k: Kind): string {
-		if (k === 'ShopItem')
-			return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200 border-blue-300/50 dark:border-blue-700/50';
-		if (k === 'AdminAdjustment')
-			return 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-200 border-purple-300/50 dark:border-purple-700/50';
-		return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200 border-emerald-300/50 dark:border-emerald-700/50';
 	}
 
 	function targetLabel(e: LedgerEntry): string {
@@ -624,7 +612,14 @@
 
 		{#snippet ledgerRow(e: LedgerEntry, showUser: boolean)}
 			<tr class="border-b border-ds-border/60 hover:bg-ds-surface2/30">
-				<td class="px-3 py-2 font-mono text-xs text-ds-text-secondary">#{e.transactionId}</td>
+				<td class="px-3 py-2 font-mono text-xs">
+					<a
+						class="text-ds-accent hover:underline"
+						href="{base}/transactions/{e.transactionId}"
+					>
+						#{e.transactionId}
+					</a>
+				</td>
 				<td class="px-3 py-2">
 					<span class="inline-flex items-center rounded border px-2 py-0.5 text-[11px] font-medium {kindColor(e.kind)}">
 						{kindLabel(e.kind)}

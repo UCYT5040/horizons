@@ -246,6 +246,106 @@ export class AdminTransactionResponse extends UserTransactionResponse {
   user: TransactionUserSummary;
 }
 
+// ── Transaction detail (admin + fulfiller) ──
+// Richer than AdminTransactionResponse: carries the shop context, the variant
+// cost actually charged, Slack handles for chasing the buyer, and the user's
+// live balance so fulfilment can be sanity-checked without a second request.
+
+class TransactionDetailItem {
+  @ApiProperty()
+  itemId: number;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  description: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  imageUrl: string | null;
+
+  @ApiProperty()
+  cost: number;
+
+  @ApiProperty({ type: Number, nullable: true })
+  shopId: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  shopSlug: string | null;
+}
+
+class TransactionDetailVariant {
+  @ApiProperty()
+  variantId: number;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty()
+  cost: number;
+
+  @ApiProperty()
+  isActive: boolean;
+}
+
+class TransactionDetailUser extends TransactionUserSummary {
+  @ApiProperty({ type: String, nullable: true })
+  slackUserId: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  slackUsername: string | null;
+
+  // Derived (approvedHours - unrefunded spend), never stored on the row.
+  @ApiProperty()
+  balance: number;
+}
+
+export class TransactionDetailResponse {
+  @ApiProperty()
+  transactionId: number;
+
+  @ApiProperty()
+  userId: number;
+
+  @ApiProperty({
+    enum: ['ShopItem', 'EventRsvp', 'EventTicket', 'AdminAdjustment'],
+  })
+  kind: string;
+
+  @ApiProperty()
+  itemDescription: string;
+
+  @ApiProperty()
+  cost: number;
+
+  @ApiProperty()
+  isFulfilled: boolean;
+
+  @ApiProperty({ type: Date, nullable: true })
+  fulfilledAt: Date | null;
+
+  @ApiProperty({ type: Date, nullable: true })
+  refundedAt: Date | null;
+
+  @ApiProperty()
+  createdAt: Date;
+
+  @ApiProperty({ type: String, nullable: true })
+  adminNote: string | null;
+
+  @ApiProperty({ type: TransactionDetailItem, nullable: true })
+  item: TransactionDetailItem | null;
+
+  @ApiProperty({ type: TransactionDetailVariant, nullable: true })
+  variant: TransactionDetailVariant | null;
+
+  @ApiProperty({ type: TransactionEventSummary, nullable: true })
+  event: TransactionEventSummary | null;
+
+  @ApiProperty({ type: TransactionDetailUser })
+  user: TransactionDetailUser;
+}
+
 export class RefundResponse {
   @ApiProperty()
   refunded: boolean;

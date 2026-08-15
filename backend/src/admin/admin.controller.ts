@@ -19,7 +19,12 @@ import {
   Header,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiOkResponse, ApiCreatedResponse, ApiConsumes, ApiProduces } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiConsumes,
+  ApiProduces,
+} from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AdminService } from './admin.service';
 import { MetricsSnapshotService } from './metrics-snapshot.service';
@@ -237,8 +242,18 @@ export class AdminController {
   @UseGuards(RolesGuard)
   @Roles(Role.Admin)
   @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Page size (max 200, default 50).' })
-  @ApiQuery({ name: 'q', required: false, description: 'Search by name, email, Slack ID, Slack display name, or Hackatime ID.' })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Page size (max 200, default 50).',
+  })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    description:
+      'Search by name, email, Slack ID, Slack display name, or Hackatime ID.',
+  })
   @ApiQuery({
     name: 'sort',
     required: false,
@@ -348,9 +363,21 @@ export class AdminController {
     @Query('endDate') endDate: string,
     @Query('overwrite') overwrite?: string,
   ) {
-    const start = new Date(startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-    const end = new Date(endDate || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
-    const results = await this.metricsSnapshotService.backfill(start, end, overwrite !== 'true');
+    const start = new Date(
+      startDate ||
+        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .split('T')[0],
+    );
+    const end = new Date(
+      endDate ||
+        new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    );
+    const results = await this.metricsSnapshotService.backfill(
+      start,
+      end,
+      overwrite !== 'true',
+    );
     return { results };
   }
 
@@ -358,9 +385,19 @@ export class AdminController {
   @UseGuards(RolesGuard)
   @Roles(Role.Admin)
   @ApiCreatedResponse({ type: StreakBackfillResponse })
-  @ApiQuery({ name: 'days', required: false, type: Number, description: 'Days to backfill (default 14, max 365)' })
-  async backfillStreaks(@Query('days') days?: string): Promise<StreakBackfillResponse> {
-    const requested = Math.max(1, Math.min(365, parseInt(days || '14', 10) || 14));
+  @ApiQuery({
+    name: 'days',
+    required: false,
+    type: Number,
+    description: 'Days to backfill (default 14, max 365)',
+  })
+  async backfillStreaks(
+    @Query('days') days?: string,
+  ): Promise<StreakBackfillResponse> {
+    const requested = Math.max(
+      1,
+      Math.min(365, parseInt(days || '14', 10) || 14),
+    );
     const start = new Date();
     start.setUTCDate(start.getUTCDate() - requested);
     start.setUTCHours(0, 0, 0, 0);
@@ -392,9 +429,13 @@ export class AdminController {
     res.send(csv);
   }
 
+  // Fulfillers need the ledger as their work queue — it's the only way to find
+  // the transaction ids the detail page is addressed by. That means they can
+  // enumerate buyer names and emails, which is an accepted trade-off for this
+  // role. Refunds and hours adjustments remain admin-only.
   @Get('transactions')
   @UseGuards(RolesGuard)
-  @Roles(Role.Admin)
+  @Roles(Role.Admin, Role.Fulfiller)
   @ApiQuery({
     name: 'kind',
     required: false,
@@ -416,17 +457,9 @@ export class AdminController {
       kind,
       userId: userId ? parseInt(userId, 10) : undefined,
       fulfilled:
-        fulfilled === 'true'
-          ? true
-          : fulfilled === 'false'
-            ? false
-            : undefined,
+        fulfilled === 'true' ? true : fulfilled === 'false' ? false : undefined,
       refunded:
-        refunded === 'true'
-          ? true
-          : refunded === 'false'
-            ? false
-            : undefined,
+        refunded === 'true' ? true : refunded === 'false' ? false : undefined,
       limit: limit ? Math.min(parseInt(limit, 10), 2000) : undefined,
     });
   }
@@ -640,9 +673,7 @@ export class AdminController {
   )
   @ApiConsumes('multipart/form-data')
   @ApiCreatedResponse({ type: ImportCsvResponse })
-  async importCsv(
-    @UploadedFile() file: Express.Multer.File,
-  ) {
+  async importCsv(@UploadedFile() file: Express.Multer.File) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
@@ -653,7 +684,10 @@ export class AdminController {
   @UseGuards(RolesGuard)
   @Roles(Role.Superadmin)
   @Header('Content-Type', 'text/csv')
-  @Header('Content-Disposition', 'attachment; filename="horizons-users-export.csv"')
+  @Header(
+    'Content-Disposition',
+    'attachment; filename="horizons-users-export.csv"',
+  )
   @ApiProduces('text/csv')
   async exportCsv(@Res() res: Response) {
     const csv = await this.adminService.exportCsv();

@@ -9,9 +9,9 @@ export function hasRole(roles: string[] | undefined, ...want: string[]): boolean
 }
 
 /** The roles that may sign into the admin dashboard at all. */
-export const PRIVILEGED_ROLES = ['admin', 'reviewer', 'event_viewer', 'superadmin'];
+export const PRIVILEGED_ROLES = ['admin', 'reviewer', 'event_viewer', 'fulfiller', 'superadmin'];
 
 /** True if the user may access the admin dashboard (holds any elevated role). */
 export function isPrivileged(roles: string[] | undefined): boolean {
-	return hasRole(roles, 'admin', 'reviewer', 'event_viewer');
+	return hasRole(roles, 'admin', 'reviewer', 'event_viewer', 'fulfiller');
 }

@@ -9,6 +9,7 @@ import { CreateItemDto } from './dto/create-item.dto';
 import { UpdateItemDto } from './dto/update-item.dto';
 import { CreateShopDto } from './dto/create-shop.dto';
 import { UpdateShopDto } from './dto/update-shop.dto';
+import { SaveTransactionNoteDto } from './dto/save-transaction-note.dto';
 import { debugLog } from '../utils/debug-log';
 import { BalanceService } from '../balance/balance.service';
 import { AirtableService } from '../airtable/airtable.service';
@@ -583,6 +584,110 @@ export class ShopService {
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  // Everything the admin transaction detail page needs in one round trip:
+  // the purchase, the shop context, and the buyer's shipping details plus
+  // their live balance. Admin- and fulfiller-only — never reached by users.
+  async getTransactionDetail(transactionId: number) {
+    const transaction = await this.prisma.transaction.findUnique({
+      where: { transactionId },
+      include: {
+        user: {
+          select: {
+            userId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            slackUserId: true,
+            slackUsername: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            state: true,
+            zipCode: true,
+            country: true,
+          },
+        },
+        item: {
+          select: {
+            itemId: true,
+            name: true,
+            description: true,
+            imageUrl: true,
+            cost: true,
+            shopId: true,
+            shop: { select: { slug: true } },
+          },
+        },
+        variant: {
+          select: {
+            variantId: true,
+            name: true,
+            cost: true,
+            isActive: true,
+          },
+        },
+        event: {
+          select: {
+            eventId: true,
+            title: true,
+            slug: true,
+            imageUrl: true,
+          },
+        },
+      },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    const { balance } = await this.balanceService.getUserBalance(
+      transaction.userId,
+    );
+
+    const { item, user, ...rest } = transaction;
+
+    return {
+      ...rest,
+      item: item
+        ? {
+            itemId: item.itemId,
+            name: item.name,
+            description: item.description,
+            imageUrl: item.imageUrl,
+            cost: item.cost,
+            shopId: item.shopId,
+            shopSlug: item.shop?.slug ?? null,
+          }
+        : null,
+      user: { ...user, balance },
+    };
+  }
+
+  // Empty content clears the note rather than storing "".
+  async saveTransactionNote(
+    transactionId: number,
+    dto: SaveTransactionNoteDto,
+  ) {
+    const exists = await this.prisma.transaction.findUnique({
+      where: { transactionId },
+      select: { transactionId: true },
+    });
+
+    if (!exists) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    const content = dto.content.trim();
+
+    await this.prisma.transaction.update({
+      where: { transactionId },
+      data: { adminNote: content || null },
+    });
+
+    return this.getTransactionDetail(transactionId);
   }
 
   async refundTransaction(transactionId: number) {
