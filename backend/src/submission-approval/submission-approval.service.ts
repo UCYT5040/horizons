@@ -160,12 +160,19 @@ function buildHoursNarrative(
   // What the reviewer's settings imply before any manual edit.
   let baseline: number;
   if (aiHours == null) {
-    // No AI figure on record — submissions reviewed before the AI breakdown
-    // was captured, or projects with no AI time detected at all.
     baseline = hackatimeHours;
-    lines.push(
-      `This user tracked ${tracked} on Hackatime for this project overall, with no AI coding time on record.`,
-    );
+    // These two read similarly but assert different things: a stored zero was
+    // measured and found empty; a stored null means no AI snapshot exists at
+    // all (pre-breakdown reviews, or Hackatime couldn't be reached).
+    if (ai?.aiHours != null) {
+      lines.push(
+        `This user tracked ${tracked} on Hackatime for this project overall, and no AI coding time was detected.`,
+      );
+    } else {
+      lines.push(
+        `This user tracked ${tracked} on Hackatime for this project overall, with no AI coding time on record.`,
+      );
+    }
   } else {
     const nonAi = formatHoursMin(hackatimeHours - aiHours);
     const aiTracked = formatHoursMin(aiHours);

@@ -622,10 +622,15 @@ export class HackatimeService {
     ]);
 
     const round1 = (n: number) => Math.round(n * 10) / 10;
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    // totalHours keeps the UI's 1dp display precision; aiHours gets a second
+    // decimal because consumers gate on `aiHours > 0` — at 1dp, anything under
+    // three minutes rounds to exactly 0 and is reported as "no AI time" even
+    // though it was measured.
     const totalHours = round1(totalSeconds / 3600);
-    const aiHours = round1(aiSeconds / 3600);
+    const aiHours = round2(aiSeconds / 3600);
     // Clamp: dedup/rounding on Hackatime's side can briefly put AI > total.
-    const nonAiHours = Math.max(0, round1(totalHours - aiHours));
+    const nonAiHours = Math.max(0, round2(totalHours - aiHours));
 
     const perProject = names.map((name) => ({
       name,

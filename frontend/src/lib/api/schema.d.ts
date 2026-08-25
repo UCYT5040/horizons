@@ -598,6 +598,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/submissions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["AdminController_updateSubmission"];
+        trace?: never;
+    };
     "/api/admin/projects/{id}/unlock": {
         parameters: {
             query?: never;
@@ -934,6 +950,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/transactions/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminController_exportTransactionLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/transactions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminController_getTransactionDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/reviewer-leaderboard": {
         parameters: {
             query?: never;
@@ -1014,6 +1062,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/users/{id}/bypass-idv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["AdminController_toggleUserBypassIdv"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/users/{id}/ban": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["AdminController_setUserBan"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users/{id}/slack": {
         parameters: {
             query?: never;
@@ -1070,6 +1150,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["AdminController_getPriorityUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/priority-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminController_getPriorityQueue"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1216,6 +1312,70 @@ export interface paths {
         get: operations["AdminController_exportCsv"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/reviewer-payouts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReviewerPayoutsController_listReviewers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/reviewer-payouts/{userId}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ReviewerPayoutsController_getHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/reviewer-payouts/{userId}/flags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["ReviewerPayoutsController_updateFlags"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/reviewer-payouts/{userId}/payout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReviewerPayoutsController_executePayout"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1409,6 +1569,22 @@ export interface paths {
         put?: never;
         post: operations["ReviewerController_quickApproveSubmission"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reviewer/submissions/{id}/send-to-admin": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ReviewerController_sendToAdmin"];
+        delete: operations["ReviewerController_returnToReviewerQueue"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2151,6 +2327,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lapse/projects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["LapseController_getProjectLapses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/integrations/referral": {
         parameters: {
             query?: never;
@@ -2460,7 +2652,9 @@ export interface components {
             longestStreak: number;
         };
         DeleteProjectResponse: {
+            /** @description Whether the project was deleted */
             deleted: boolean;
+            /** @description Deleted project ID */
             projectId: number;
         };
         PublicProjectAuthor: {
@@ -2556,10 +2750,16 @@ export interface components {
             /** Format: date-time */
             hackatimeStartDate: string | null;
             slackUserId: string | null;
+            /** @description Cached Slack display name (refreshed on login). */
+            slackUsername: string | null;
             referralCode: string | null;
             referredByUserId: number | null;
             isFraud: boolean;
             isSus: boolean;
+            banned: boolean;
+            bannedReason: string | null;
+            /** Format: date-time */
+            bannedAt: string | null;
             timezone: string | null;
             currentStreak: number;
             longestStreak: number;
@@ -2590,6 +2790,7 @@ export interface components {
             submissionId: number;
             approvalStatus: string;
             airtableRecId: string | null;
+            airtableRecordUrl: string | null;
             approvedHours: number | null;
             hoursJustification: string | null;
             description: string | null;
@@ -2621,6 +2822,13 @@ export interface components {
             createdAt: string;
             admin: components["schemas"]["AuditLogAdminResponse"] | null;
         };
+        UpdateAdminSubmissionDto: {
+            description?: string | null;
+            playableUrl?: string | null;
+            repoUrl?: string | null;
+            screenshotUrl?: string | null;
+            hackatimeHours?: number | null;
+        };
         AdminLightUserResponse: {
             userId: number;
             firstName: string | null;
@@ -2637,10 +2845,16 @@ export interface components {
             /** Format: date-time */
             hackatimeStartDate: string | null;
             slackUserId: string | null;
+            /** @description Cached Slack display name (refreshed on login). */
+            slackUsername: string | null;
             referralCode: string | null;
             referredByUserId: number | null;
             isFraud: boolean;
             isSus: boolean;
+            banned: boolean;
+            bannedReason: string | null;
+            /** Format: date-time */
+            bannedAt: string | null;
             timezone: string | null;
             currentStreak: number;
             longestStreak: number;
@@ -2677,8 +2891,11 @@ export interface components {
             isLocked: boolean;
             /** @description Permanent reject flag. User-facing reason is the latest submission's `hoursJustification`; audit (who/when) is in SubmissionAuditLog. */
             permReject: boolean;
+            /** @description Joe fraud-review project id, for deep-linking to Joe. */
+            joeProjectId: string | null;
             joeFraudPassed: boolean | null;
             joeTrustScore: number | null;
+            joeJustification: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -2714,6 +2931,7 @@ export interface components {
             lastName: string | null;
             email: string;
             slackUserId: string | null;
+            slackUsername: string | null;
             isFraud: boolean;
             isSus: boolean;
             /** Format: date-time */
@@ -2731,6 +2949,7 @@ export interface components {
             repoUrl: string | null;
             isLocked: boolean;
             permReject: boolean;
+            joeProjectId: string | null;
             joeFraudPassed: boolean | null;
             joeTrustScore: number | null;
             /** Format: date-time */
@@ -2741,6 +2960,7 @@ export interface components {
             user: components["schemas"]["AdminProjectListUserResponse"];
             latestSubmission: components["schemas"]["AdminProjectSubmissionResponse"] | null;
             submissionCount: number;
+            airtableRecIds: string[];
         };
         ProjectManifestSummaryEntry: {
             projectId: number;
@@ -2807,10 +3027,15 @@ export interface components {
             skipped: components["schemas"]["RecalculateAllSkipped"][];
             errors: components["schemas"]["RecalculateAllError"][];
         };
+        AdminDeleteProjectResponse: {
+            deleted: boolean;
+            projectId: number;
+        };
         AdminUserSubmissionResponse: {
             submissionId: number;
             approvalStatus: string;
             approvedHours: number | null;
+            hackatimeHours: number | null;
             /** Format: date-time */
             createdAt: string;
         };
@@ -2823,6 +3048,8 @@ export interface components {
             isLocked: boolean;
             /** Format: date-time */
             createdAt: string;
+            /** Format: date-time */
+            deletedAt: string | null;
             submissions: components["schemas"]["AdminUserSubmissionResponse"][];
         };
         AdminUserResponse: {
@@ -2841,10 +3068,16 @@ export interface components {
             /** Format: date-time */
             hackatimeStartDate: string | null;
             slackUserId: string | null;
+            /** @description Cached Slack display name (refreshed on login). */
+            slackUsername: string | null;
             referralCode: string | null;
             referredByUserId: number | null;
             isFraud: boolean;
             isSus: boolean;
+            banned: boolean;
+            bannedReason: string | null;
+            /** Format: date-time */
+            bannedAt: string | null;
             timezone: string | null;
             currentStreak: number;
             longestStreak: number;
@@ -2854,8 +3087,23 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            phoneNumber: string | null;
+            /** @description HCA-reported verification state for the phone number; null when no number is set. */
+            phoneNumberVerified: boolean | null;
+            /** @description When true, the user skips the HCA identity-verification check on submission. */
+            bypassIdv: boolean;
             roles: string[];
             projects: components["schemas"]["AdminUserProjectResponse"][];
+            /** @description Sum of live Hackatime tracked hours across non-deleted projects. */
+            totalHackatimeHours: number;
+            /** @description Sum of each non-deleted project's latest-submission Hackatime hours — what's been put up for review, regardless of verdict. */
+            totalSubmittedHours: number;
+            /** @description Sum of approved hours across non-deleted projects. */
+            totalApprovedHours: number;
+            /** @description Sum of unrefunded ledger transaction costs. */
+            totalSpent: number;
+            /** @description Spendable hour balance (earned minus spent), matching BalanceService. */
+            balance: number;
         };
         AdminUserListResponse: {
             users: components["schemas"]["AdminUserResponse"][];
@@ -3097,6 +3345,7 @@ export interface components {
             fraudCheckedThisWeek: number;
             reviewedThisWeek: number;
             funnelMatrix: components["schemas"]["StatsFunnelMatrix"];
+            funnelMatrixHours: components["schemas"]["StatsFunnelMatrix"];
         };
         StatsSignupEventEntry: {
             eventId: number;
@@ -3263,28 +3512,23 @@ export interface components {
             qualified: number;
             modes: components["schemas"]["StatsSignupQualificationModes"];
         };
-        EventStatsResponse: {
-            event: components["schemas"]["EventStatsEventInfo"];
-            /** @description Total users currently pinned to this sub-event */
+        AdminEventStatsResponse: {
+            event: components["schemas"]["EventStatsEventDetail"];
             pinnedCount: number;
-            /** @description Pinned users whose approved hours ≥ hourCost */
             metHourGoal: number;
-            /** @description Pinned users whose approved hours < hourCost */
             notMetHourGoal: number;
-            /** @description Yesterday's DAU for this sub-event — read from the historical metric snapshot (today is mid-stream and intentionally omitted) */
             dauYesterday: number;
-            /** @description Aggregate hour buckets across users pinned to this sub-event — definitions match the admin dashboard / user CSV export */
-            hours: components["schemas"]["EventHourTotals"];
-            /** @description Funnel counts among pinned users, by approved hours */
-            qualification: components["schemas"]["QualificationFunnel"];
-            /** @description ISO timestamp when this response was generated */
-            generatedAt: string;
+            pinnedTimeline: components["schemas"]["EventStatsPinnedTimelineEntry"][];
+            dauTimeline: components["schemas"]["EventStatsPinnedTimelineEntry"][];
+            qualification: components["schemas"]["EventStatsQualification"];
         };
         LedgerEntryUserSummary: {
             userId: number;
             email: string;
             firstName: string;
             lastName: string;
+            slackUserId: string | null;
+            slackUsername: string | null;
         };
         LedgerEntryItemSummary: {
             itemId: number;
@@ -3322,6 +3566,61 @@ export interface components {
         LedgerResponse: {
             entries: components["schemas"]["LedgerEntryResponse"][];
             summary: components["schemas"]["LedgerSummaryResponse"];
+        };
+        AdminTransactionDetailUserResponse: {
+            userId: number;
+            firstName: string | null;
+            lastName: string | null;
+            email: string;
+            slackUserId: string | null;
+            slackUsername: string | null;
+            phoneNumber: string | null;
+            /** @description HCA-reported verification state; null when no number is set. */
+            phoneNumberVerified: boolean | null;
+            addressLine1: string | null;
+            addressLine2: string | null;
+            city: string | null;
+            state: string | null;
+            zipCode: string | null;
+            country: string | null;
+        };
+        AdminTransactionDetailItemResponse: {
+            itemId: number;
+            name: string;
+            description: string | null;
+            imageUrl: string | null;
+            cost: number | null;
+            shop: Record<string, never> | null;
+        };
+        AdminTransactionDetailVariantResponse: {
+            variantId: number | null;
+            name: string | null;
+            cost: number | null;
+        };
+        AdminTransactionDetailEventResponse: {
+            eventId: number | null;
+            slug: string | null;
+            title: string | null;
+            location: string | null;
+        };
+        AdminTransactionDetailResponse: {
+            transactionId: number;
+            /** @enum {string} */
+            kind: "ShopItem" | "EventTicket" | "AdminAdjustment";
+            itemDescription: string;
+            cost: number;
+            isFulfilled: boolean;
+            /** Format: date-time */
+            fulfilledAt: string | null;
+            /** Format: date-time */
+            refundedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Full buyer identity for admins, including address and phone number. */
+            user: components["schemas"]["AdminTransactionDetailUserResponse"];
+            item: components["schemas"]["AdminTransactionDetailItemResponse"] | null;
+            variant: components["schemas"]["AdminTransactionDetailVariantResponse"] | null;
+            event: components["schemas"]["AdminTransactionDetailEventResponse"] | null;
         };
         ReviewerLeaderboardEntry: {
             reviewerId: string;
@@ -3367,6 +3666,32 @@ export interface components {
             lastName: string | null;
             isSus: boolean;
         };
+        ToggleBypassIdvDto: {
+            /** @description When true, the user skips the HCA identity-verification check on submission. */
+            bypassIdv: boolean;
+        };
+        AdminUserBypassIdvResponse: {
+            userId: number;
+            email: string;
+            firstName: string | null;
+            lastName: string | null;
+            bypassIdv: boolean;
+        };
+        ToggleBanDto: {
+            banned: boolean;
+            /** @description Admin-only note explaining why the user was banned. */
+            reason?: string | null;
+        };
+        AdminUserBanResponse: {
+            userId: number;
+            email: string;
+            firstName: string | null;
+            lastName: string | null;
+            banned: boolean;
+            bannedReason: string | null;
+            /** Format: date-time */
+            bannedAt: string | null;
+        };
         UpdateSlackIdDto: {
             slackUserId: string | null;
         };
@@ -3393,6 +3718,16 @@ export interface components {
             potentialHoursIfApproved: number;
             reason: string;
         };
+        PriorityQueueEntryResponse: {
+            /** @description Horizons project id this priority entry maps to */
+            projectId: number;
+            /** @description Reason the submitter gave for requesting priority review */
+            reason: string;
+            /** @description Who approved the priority request */
+            decidedBy: string | null;
+            /** @description Unix seconds when the priority request was decided */
+            decidedAt: number | null;
+        };
         GlobalSettingsResponse: {
             id: string;
             submissionsFrozen: boolean;
@@ -3413,8 +3748,11 @@ export interface components {
             createdAt: string;
         };
         UpdateUserRoleDto: {
-            /** @description Full set of roles to assign. Superadmin cannot be assigned here. */
-            roles: ("user" | "admin" | "reviewer" | "event_viewer")[];
+            /**
+             * @description Full set of roles to assign. Superadmin cannot be assigned here.
+             * @enum {array}
+             */
+            roles: "user" | "admin" | "reviewer" | "event_viewer";
         };
         UpdateUserRoleResponse: {
             userId: number;
@@ -3466,6 +3804,84 @@ export interface components {
             skipped: number;
             skippedDetails: components["schemas"]["ImportCsvSkipped"][];
             errors: components["schemas"]["ImportCsvError"][];
+        };
+        ReviewerPayoutSummaryResponse: {
+            userId: number;
+            firstName: string;
+            lastName: string;
+            slackUserId: string | null;
+            payoutsEnabled: boolean;
+            boostedRateEnabled: boolean;
+            /** @description Total reviews performed before the rate cutoff. */
+            reviewsBeforeCutoff: number;
+            /** @description Total reviews performed on/after the rate cutoff. */
+            reviewsAfterCutoff: number;
+            /** @description Pre-cutoff reviews not yet counted in a payout. */
+            unpaidBefore: number;
+            /** @description Post-cutoff reviews not yet counted in a payout. */
+            unpaidAfter: number;
+            /** @description Whole hours payable right now under the reviewer’s current rate flags. Boosted: floor(unpaidBefore/15) + floor(unpaidAfter/5). Unboosted: floor((unpaidBefore+unpaidAfter)/15). */
+            owedHours: number;
+            /** @description Unpaid reviews that don’t fill a whole block yet and will carry over to the next payout. */
+            carryover: number;
+            /** @description Sum of hours across all past payouts. */
+            totalPaidHours: number;
+            /** Format: date-time */
+            lastPayoutAt: string | null;
+        };
+        ReviewerPayoutListResponse: {
+            reviewers: components["schemas"]["ReviewerPayoutSummaryResponse"][];
+            /**
+             * Format: date-time
+             * @description Rate cutoff instant (July 13 2026, 00:00 US Eastern).
+             */
+            rateCutoff: string;
+        };
+        ReviewerPayoutHistoryEntryResponse: {
+            payoutId: number;
+            hours: number;
+            reviewsCountedBefore: number;
+            reviewsCountedAfter: number;
+            /** @description Whether the boosted 1h/5 rate was active for this payout. */
+            boostedRateApplied: boolean;
+            transactionId: number;
+            /** @description True when the backing transaction was refunded. */
+            refunded: boolean;
+            createdByUserId: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ReviewerPayoutHistoryResponse: {
+            payouts: components["schemas"]["ReviewerPayoutHistoryEntryResponse"][];
+        };
+        UpdateReviewerPayoutFlagsDto: {
+            /** @description Whether this reviewer can be paid out at all. */
+            payoutsEnabled?: boolean;
+            /** @description Whether the boosted 1h/5 rate applies to this reviewer’s post-cutoff reviews (default rate is 1h/15 for everything). */
+            boostedRateEnabled?: boolean;
+        };
+        ReviewerPayoutFlagsResponse: {
+            userId: number;
+            payoutsEnabled: boolean;
+            boostedRateEnabled: boolean;
+        };
+        ExecuteReviewerPayoutDto: {
+            /** @description Optimistic-concurrency guard: the owed hours shown in the UI when the admin confirmed. If set and the server-computed hours differ, the payout is rejected with 409 so a stale page never pays a different amount. */
+            expectedHours?: number;
+        };
+        ExecuteReviewerPayoutResponse: {
+            payoutId: number;
+            transactionId: number;
+            hours: number;
+            reviewsCountedBefore: number;
+            reviewsCountedAfter: number;
+            boostedRateApplied: boolean;
+            remainingUnpaidBefore: number;
+            remainingUnpaidAfter: number;
+            /** @description Reviewer’s balance after the payout. */
+            newBalance: number;
+            /** Format: date-time */
+            createdAt: string;
         };
         LeaderboardEntry: {
             reviewerId: string;
@@ -3537,6 +3953,7 @@ export interface components {
             fraudCheckedThisWeek: number;
             reviewedThisWeek: number;
             funnelMatrix: components["schemas"]["FunnelMatrix"];
+            funnelMatrixHours: components["schemas"]["FunnelMatrix"];
         };
         ReviewHistorical: {
             reviewsCompleted: components["schemas"]["HistoricalDataPoint"][];
@@ -3571,6 +3988,7 @@ export interface components {
             projectId: number;
             projectTitle: string;
             projectType: string;
+            joeProjectId: string | null;
             reviewerId: string | null;
             reviewerName: string;
             /** @enum {string} */
@@ -3591,6 +4009,7 @@ export interface components {
             projectId: number;
             projectTitle: string;
             projectType: string;
+            joeProjectId: string | null;
             /** Format: date-time */
             finalizedAt: string | null;
             /** Format: date-time */
@@ -3605,6 +4024,7 @@ export interface components {
             playableUrl: string | null;
             nowHackatimeHours: number | null;
             nowHackatimeProjects: string[];
+            joeProjectId: string | null;
             joeFraudPassed: boolean | null;
             user: components["schemas"]["ScopedUserResponse"];
         };
@@ -3619,6 +4039,18 @@ export interface components {
             isStale: boolean;
             isMine: boolean;
         };
+        MyRereviewResponse: {
+            previousSubmissionId: number;
+            /** Format: date-time */
+            previousReviewedAt: string | null;
+        };
+        SentToAdminInfoResponse: {
+            /** Format: date-time */
+            sentAt: string;
+            byUserId: number | null;
+            byName: string;
+            note: string;
+        };
         QueueItemResponse: {
             submissionId: number;
             projectId: number;
@@ -3631,6 +4063,10 @@ export interface components {
             /** @description True when the owner hasn't bought yet but their approved+pending hours would clear the pinned event's ticket threshold. */
             canBuyTicketIfApproved: boolean;
             claim: components["schemas"]["ClaimInfoResponse"] | null;
+            /** @description Set when this submission is a reship after the requesting reviewer's own rejection — the same condition that triggers the Slack re-review ping. Null for everyone else. */
+            myRereview: components["schemas"]["MyRereviewResponse"] | null;
+            /** @description Set when a reviewer escalated this submission to the secondary admin queue. Null for regular queue items. */
+            sentToAdmin: components["schemas"]["SentToAdminInfoResponse"] | null;
         };
         SubmissionProjectResponse: {
             projectId: number;
@@ -3643,19 +4079,22 @@ export interface components {
             adminComment: string | null;
             nowHackatimeHours: number | null;
             nowHackatimeProjects: string[];
+            joeProjectId: string | null;
             joeFraudPassed: boolean | null;
             joeTrustScore: number | null;
+            joeJustification: string | null;
             user: components["schemas"]["ScopedUserResponse"];
         };
         TimelineEntryResponse: {
             /** @enum {string} */
-            type: "submitted" | "resubmitted" | "approved" | "rejected";
+            type: "submitted" | "resubmitted" | "approved" | "rejected" | "sent_to_admin" | "returned_to_queue";
             hours?: number | null;
             reviewerName?: string;
             userFeedback?: string | null;
             hoursJustification?: string | null;
             approvedHours?: number | null;
             submittedHours?: number | null;
+            note?: string | null;
             /** Format: date-time */
             timestamp: string;
         };
@@ -3670,6 +4109,7 @@ export interface components {
             reviewedAt: string | null;
             hackatimeHours: number | null;
             approvedHours: number | null;
+            manualReduction: number;
         };
         SubmissionDetailResponse: {
             submissionId: number;
@@ -3684,6 +4124,8 @@ export interface components {
             reviewedAt: string | null;
             approvedHours: number | null;
             hackatimeHours: number | null;
+            aiHours: number | null;
+            aiReductionApplied: boolean | null;
             userFeedback: string | null;
             reviewerAnalysis: string | null;
             description: string | null;
@@ -3696,6 +4138,7 @@ export interface components {
             timeline: components["schemas"]["TimelineEntryResponse"][];
             submissions: components["schemas"]["ProjectSubmissionSummary"][];
             claim: components["schemas"]["ClaimInfoResponse"] | null;
+            sentToAdmin: components["schemas"]["SentToAdminInfoResponse"] | null;
         };
         ClaimSubmissionDto: {
             force?: boolean;
@@ -3727,6 +4170,13 @@ export interface components {
             userFeedback?: string;
             hoursJustification?: string;
             approvedHours?: number;
+        };
+        SendToAdminDto: {
+            note: string;
+        };
+        SendToAdminResultResponse: {
+            success: boolean;
+            submissionId: number;
         };
         ManifestSubmissionResponse: {
             submissionId: string;
@@ -4312,6 +4762,27 @@ export interface components {
         ReadmeResponse: {
             content?: string | null;
         };
+        LapseUserResponse: {
+            id: string;
+            handle: string;
+            displayName: string;
+        };
+        LapseTimelapseResponse: {
+            id: string;
+            name: string;
+            hackatimeProject?: string | null;
+            playbackUrl?: string | null;
+            thumbnailUrl?: string | null;
+            duration: number;
+            visibility: string;
+            createdAt: string;
+        };
+        ProjectLapsesResponse: {
+            lapseUser?: components["schemas"]["LapseUserResponse"] | null;
+            timelapses: components["schemas"]["LapseTimelapseResponse"][];
+            otherTimelapseCount: number;
+            error?: string;
+        };
         ReferralResponse: {
             /** @description The user's referral code */
             referralCode: string | null;
@@ -4360,6 +4831,23 @@ export interface components {
             /** @description Pinned users with ≥30h of approved work (qualified) */
             qualified: number;
         };
+        EventStatsResponse: {
+            event: components["schemas"]["EventStatsEventInfo"];
+            /** @description Total users currently pinned to this sub-event */
+            pinnedCount: number;
+            /** @description Pinned users whose approved hours ≥ hourCost */
+            metHourGoal: number;
+            /** @description Pinned users whose approved hours < hourCost */
+            notMetHourGoal: number;
+            /** @description Yesterday's DAU for this sub-event — read from the historical metric snapshot (today is mid-stream and intentionally omitted) */
+            dauYesterday: number;
+            /** @description Aggregate hour buckets across users pinned to this sub-event — definitions match the admin dashboard / user CSV export */
+            hours: components["schemas"]["EventHourTotals"];
+            /** @description Funnel counts among pinned users, by approved hours */
+            qualification: components["schemas"]["QualificationFunnel"];
+            /** @description ISO timestamp when this response was generated */
+            generatedAt: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -4375,6 +4863,7 @@ export interface operations {
                 referralCode?: string;
                 email?: string;
                 utm_source?: string;
+                redirect?: string;
             };
             header?: never;
             path?: never;
@@ -5254,6 +5743,31 @@ export interface operations {
             };
         };
     };
+    AdminController_updateSubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateAdminSubmissionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSubmissionResponse"];
+                };
+            };
+        };
+    };
     AdminController_unlockProject: {
         parameters: {
             query?: never;
@@ -5374,7 +5888,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DeleteProjectResponse"];
+                    "application/json": components["schemas"]["AdminDeleteProjectResponse"];
                 };
             };
         };
@@ -5471,7 +5985,7 @@ export interface operations {
                 page?: number;
                 /** @description Page size (max 200, default 50). */
                 limit?: number;
-                /** @description Search by name, email, or Slack ID. */
+                /** @description Search by name, email, Slack ID, Slack display name, or Hackatime ID. */
                 q?: string;
                 sort?: "recent" | "streak-desc" | "streak-asc" | "longest-desc";
             };
@@ -5696,7 +6210,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EventStatsResponse"];
+                    "application/json": components["schemas"]["AdminEventStatsResponse"];
                 };
             };
         };
@@ -5741,6 +6255,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LedgerResponse"];
+                };
+            };
+        };
+    };
+    AdminController_exportTransactionLedger: {
+        parameters: {
+            query?: {
+                kind?: "ShopItem" | "EventTicket" | "AdminAdjustment";
+                fulfilled?: boolean;
+                refunded?: boolean;
+                /** @description Search by user identity (email/name/Slack ID), item side, or transaction id. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    AdminController_getTransactionDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTransactionDetailResponse"];
                 };
             };
         };
@@ -5852,6 +6412,56 @@ export interface operations {
             };
         };
     };
+    AdminController_toggleUserBypassIdv: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToggleBypassIdvDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserBypassIdvResponse"];
+                };
+            };
+        };
+    };
+    AdminController_setUserBan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToggleBanDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserBanResponse"];
+                };
+            };
+        };
+    };
     AdminController_updateUserSlackId: {
         parameters: {
             query?: never;
@@ -5930,6 +6540,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PriorityUserResponse"][];
+                };
+            };
+        };
+    };
+    AdminController_getPriorityQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriorityQueueEntryResponse"][];
                 };
             };
         };
@@ -6124,6 +6753,96 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    ReviewerPayoutsController_listReviewers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewerPayoutListResponse"];
+                };
+            };
+        };
+    };
+    ReviewerPayoutsController_getHistory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewerPayoutHistoryResponse"];
+                };
+            };
+        };
+    };
+    ReviewerPayoutsController_updateFlags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateReviewerPayoutFlagsDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewerPayoutFlagsResponse"];
+                };
+            };
+        };
+    };
+    ReviewerPayoutsController_executePayout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExecuteReviewerPayoutDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExecuteReviewerPayoutResponse"];
+                };
             };
         };
     };
@@ -6422,6 +7141,58 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    ReviewerController_sendToAdmin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendToAdminDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendToAdminResultResponse"];
+                };
+            };
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ReviewerController_returnToReviewerQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendToAdminResultResponse"];
+                };
             };
         };
     };
@@ -7865,6 +8636,27 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadmeResponse"];
+                };
+            };
+        };
+    };
+    LapseController_getProjectLapses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectLapsesResponse"];
                 };
             };
         };

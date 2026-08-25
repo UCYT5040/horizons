@@ -5,6 +5,7 @@ import { TransactionKind } from '../../generated/prisma/enums';
 import { PrismaService } from '../prisma.service';
 import { AirtableService } from '../airtable/airtable.service';
 import { debugLog } from '../utils/debug-log';
+import { isAgedOut } from '../utils/age';
 
 @Injectable()
 export class BalanceService {
@@ -133,14 +134,26 @@ export class BalanceService {
     userId: number,
     context: string,
     ineligibleMessage = 'You must be verified eligible to complete this action',
+    opts?: { allowAgedOut?: boolean },
   ): Promise<void> {
     const user = await this.prisma.user.findUnique({
       where: { userId },
-      select: { email: true },
+      select: { email: true, birthday: true, ageOverride: true },
     });
 
     if (!user || !user.email) {
       throw new BadRequestException('User email not found');
+    }
+
+    // Hack Club identity eligibility ends at 19, so the external check would
+    // hard-fail for every aged-out user. Contexts that grandfather them in
+    // (shipping pre-existing projects, spending their balance) skip it; their
+    // hours were already earned and approved under the old regime.
+    if (opts?.allowAgedOut && isAgedOut(user.birthday, user.ageOverride)) {
+      debugLog(
+        `[${context}] User ${userId} has aged out of Hack Club — skipping IDV check (grandfathered)`,
+      );
+      return;
     }
 
     const externalApiBaseUrl = this.configService.get<string>(

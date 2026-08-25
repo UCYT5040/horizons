@@ -10,6 +10,7 @@ interface UserCache {
 	roles: string[];
 	currentStreak: number;
 	longestStreak: number;
+	agedOut: boolean;
 	loaded: boolean;
 }
 
@@ -19,6 +20,7 @@ const store = writable<UserCache>({
 	roles: [],
 	currentStreak: 0,
 	longestStreak: 0,
+	agedOut: false,
 	loaded: false,
 });
 
@@ -48,6 +50,7 @@ export const userStore = {
 					roles: (userRes.data?.roles as string[]) ?? [],
 					currentStreak: (userRes.data?.currentStreak as number) ?? 0,
 					longestStreak: (userRes.data?.longestStreak as number) ?? 0,
+					agedOut: Boolean(userRes.data?.agedOut),
 					loaded: true,
 				});
 			})();
