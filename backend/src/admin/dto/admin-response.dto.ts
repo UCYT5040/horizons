@@ -558,6 +558,140 @@ export class ReviewerLeaderboardEntry {
   lastReviewedAt: Date | null;
 }
 
+export class AdminTransactionDetailUserResponse {
+  @ApiProperty()
+  userId: number;
+
+  @ApiProperty({ type: String, nullable: true })
+  firstName: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  lastName: string | null;
+
+  @ApiProperty()
+  email: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  slackUserId: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  slackUsername: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  phoneNumber: string | null;
+
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description: 'HCA-reported verification state; null when no number is set.',
+  })
+  phoneNumberVerified: boolean | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  addressLine1: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  addressLine2: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  city: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  state: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  zipCode: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  country: string | null;
+}
+
+export class AdminTransactionDetailItemResponse {
+  @ApiProperty()
+  itemId: number;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  description: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  imageUrl: string | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  cost: number | null;
+
+  @ApiProperty({ type: Object, nullable: true })
+  shop: { shopId: number; slug: string } | null;
+}
+
+export class AdminTransactionDetailVariantResponse {
+  @ApiProperty({ type: Number, nullable: true })
+  variantId: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  name: string | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  cost: number | null;
+}
+
+export class AdminTransactionDetailEventResponse {
+  @ApiProperty({ type: Number, nullable: true })
+  eventId: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  slug: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  title: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  location: string | null;
+}
+
+export class AdminTransactionDetailResponse {
+  @ApiProperty()
+  transactionId: number;
+
+  @ApiProperty({ enum: ['ShopItem', 'EventTicket', 'AdminAdjustment'] })
+  kind: string;
+
+  @ApiProperty()
+  itemDescription: string;
+
+  @ApiProperty()
+  cost: number;
+
+  @ApiProperty()
+  isFulfilled: boolean;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  fulfilledAt: Date | null;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  refundedAt: Date | null;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt: Date;
+
+  @ApiProperty({
+    description:
+      'Full buyer identity for admins, including address and phone number.',
+  })
+  user: AdminTransactionDetailUserResponse;
+
+  @ApiProperty({ type: AdminTransactionDetailItemResponse, nullable: true })
+  item: AdminTransactionDetailItemResponse | null;
+
+  @ApiProperty({ type: AdminTransactionDetailVariantResponse, nullable: true })
+  variant: AdminTransactionDetailVariantResponse | null;
+
+  @ApiProperty({ type: AdminTransactionDetailEventResponse, nullable: true })
+  event: AdminTransactionDetailEventResponse | null;
+}
+
 export class AdminUserFlagResponse {
   @ApiProperty()
   userId: number;

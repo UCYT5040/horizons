@@ -43,6 +43,7 @@ import {
   AdminMetricsResponse,
   ReviewerLeaderboardEntry,
   AdminUserFlagResponse,
+  AdminTransactionDetailResponse,
   AdminUserSusFlagResponse,
   AdminUserBypassIdvResponse,
   AdminUserBanResponse,
@@ -429,6 +430,61 @@ export class AdminController {
             : undefined,
       limit: limit ? Math.min(parseInt(limit, 10), 2000) : undefined,
     });
+  }
+
+  // Declared before the `:id` detail route below so "export" isn't captured as an id.
+  @Get('transactions/export')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Admin)
+  @ApiQuery({
+    name: 'kind',
+    required: false,
+    enum: ['ShopItem', 'EventTicket', 'AdminAdjustment'],
+  })
+  @ApiQuery({ name: 'fulfilled', required: false, type: Boolean })
+  @ApiQuery({ name: 'refunded', required: false, type: Boolean })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    description: 'Search by user identity (email/name/Slack ID), item side, or transaction id.',
+  })
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header(
+    'Content-Disposition',
+    'attachment; filename="transactions-export.csv"',
+  )
+  @Header('Cache-Control', 'no-store')
+  @ApiProduces('text/csv')
+  async exportTransactionLedger(
+    @Query('kind') kind?: 'ShopItem' | 'EventTicket' | 'AdminAdjustment',
+    @Query('fulfilled') fulfilled?: string,
+    @Query('refunded') refunded?: string,
+    @Query('q') q?: string,
+  ) {
+    return this.adminService.exportTransactionLedgerCsv({
+      kind,
+      fulfilled:
+        fulfilled === 'true'
+          ? true
+          : fulfilled === 'false'
+            ? false
+            : undefined,
+      refunded:
+        refunded === 'true'
+          ? true
+          : refunded === 'false'
+            ? false
+            : undefined,
+      q,
+    });
+  }
+
+  @Get('transactions/:id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Admin)
+  @ApiOkResponse({ type: AdminTransactionDetailResponse })
+  async getTransactionDetail(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.getTransactionDetail(id);
   }
 
   @Get('reviewer-leaderboard')

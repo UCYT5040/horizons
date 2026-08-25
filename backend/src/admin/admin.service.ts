@@ -3694,6 +3694,200 @@ export class AdminService {
     return { entries, summary };
   }
 
+  async getTransactionDetail(transactionId: number) {
+    const txn = await this.prisma.transaction.findUnique({
+      where: { transactionId },
+      include: {
+        user: {
+          select: {
+            userId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            slackUserId: true,
+            slackUsername: true,
+            phoneNumber: true,
+            phoneNumberVerified: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            state: true,
+            zipCode: true,
+            country: true,
+          },
+        },
+        item: {
+          select: {
+            itemId: true,
+            name: true,
+            description: true,
+            imageUrl: true,
+            cost: true,
+            shop: { select: { shopId: true, slug: true } },
+          },
+        },
+        variant: { select: { variantId: true, name: true, cost: true } },
+        event: {
+          select: { eventId: true, slug: true, title: true, location: true },
+        },
+      },
+    });
+
+    if (!txn) {
+      throw new NotFoundException('Transaction not found');
+    }
+
+    return txn;
+  }
+
+  // CSV export of the ledger with full user identity (address + phone) for
+  // fulfilment workflows. Mirrors getTransactionLedger's filters plus the
+  // client-side search box, so "export what I'm looking at" holds server-side.
+  async exportTransactionLedgerCsv(filters: {
+    kind?: 'ShopItem' | 'EventTicket' | 'AdminAdjustment';
+    fulfilled?: boolean;
+    refunded?: boolean;
+    q?: string;
+  }): Promise<string> {
+    const where: any = {};
+    if (filters.kind) where.kind = filters.kind;
+    if (filters.fulfilled !== undefined)
+      where.isFulfilled = filters.fulfilled;
+    if (filters.refunded !== undefined) {
+      where.refundedAt = filters.refunded ? { not: null } : null;
+    }
+    const q = (filters.q ?? '').trim();
+    if (q) {
+      // Same broad match the transactions page does client-side: user
+      // identity, item side, or the transaction id itself.
+      const id = /^\d+$/.test(q) ? parseInt(q, 10) : NaN;
+      where.OR = [
+        ...(Number.isFinite(id) ? [{ transactionId: id }] : []),
+        {
+          user: {
+            OR: [
+              { email: { contains: q, mode: 'insensitive' } },
+              { firstName: { contains: q, mode: 'insensitive' } },
+              { lastName: { contains: q, mode: 'insensitive' } },
+              { slackUserId: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+        },
+        { itemDescription: { contains: q, mode: 'insensitive' } },
+        { item: { name: { contains: q, mode: 'insensitive' } } },
+        { event: { slug: { contains: q, mode: 'insensitive' } } },
+        { event: { title: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+
+    const rows = await this.prisma.transaction.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            userId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            slackUserId: true,
+            phoneNumber: true,
+            phoneNumberVerified: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            state: true,
+            zipCode: true,
+            country: true,
+          },
+        },
+        item: { select: { itemId: true, name: true } },
+        event: { select: { eventId: true, slug: true, title: true } },
+      },
+    });
+
+    const escape = (value: unknown): string => {
+      const s =
+        value === null || value === undefined
+          ? ''
+          : typeof value === 'boolean'
+            ? value
+              ? 'true'
+              : 'false'
+            : String(value);
+      // CSV formula-injection guard: Excel/Sheets execute cells that start
+      // with =, +, -, @ or tab as formulas. Phone numbers legitimately start
+      // with "+", so this is not hypothetical here — prefix with a single
+      // quote so they render as text.
+      const guarded = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
+      return /[",\r\n]/.test(guarded)
+        ? `"${guarded.replace(/"/g, '""')}"`
+        : guarded;
+    };
+
+    const header = [
+      'transaction_id',
+      'created_at',
+      'kind',
+      'status',
+      'cost_hours',
+      'item_description',
+      'item_name',
+      'event_title',
+      'user_id',
+      'first_name',
+      'last_name',
+      'email',
+      'slack_user_id',
+      'phone_number',
+      'phone_verified',
+      'address_line_1',
+      'address_line_2',
+      'city',
+      'state',
+      'zip_code',
+      'country',
+    ];
+
+    const lines = [header.join(',')];
+    for (const t of rows) {
+      const status = t.refundedAt
+        ? 'refunded'
+        : t.isFulfilled
+          ? 'fulfilled'
+          : 'pending';
+      lines.push(
+        [
+          t.transactionId,
+          t.createdAt.toISOString(),
+          t.kind,
+          status,
+          t.cost,
+          t.itemDescription,
+          t.item?.name ?? '',
+          t.event?.title ?? '',
+          t.user.userId,
+          t.user.firstName,
+          t.user.lastName,
+          t.user.email,
+          t.user.slackUserId ?? '',
+          t.user.phoneNumber ?? '',
+          t.user.phoneNumberVerified ?? '',
+          t.user.addressLine1 ?? '',
+          t.user.addressLine2 ?? '',
+          t.user.city ?? '',
+          t.user.state ?? '',
+          t.user.zipCode ?? '',
+          t.user.country ?? '',
+        ]
+          .map(escape)
+          .join(','),
+      );
+    }
+
+    return lines.join('\r\n') + '\r\n';
+  }
+
   // Superadmin-only manual balance adjustment. Positive hours credit the user
   // (stored as negative cost so balance = approvedHours - sumCost increases);
   // negative hours deduct. Recorded as a TransactionKind.AdminAdjustment row so
