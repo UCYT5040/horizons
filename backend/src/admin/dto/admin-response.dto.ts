@@ -341,6 +341,17 @@ class AdminUserProjectResponse {
 }
 
 export class AdminUserResponse extends AdminLightUserResponse {
+  @ApiProperty({ type: String, nullable: true })
+  phoneNumber: string | null;
+
+  @ApiProperty({
+    type: Boolean,
+    nullable: true,
+    description:
+      'HCA-reported verification state for the phone number; null when no number is set.',
+  })
+  phoneNumberVerified: boolean | null;
+
   @ApiProperty({
     description:
       'When true, the user skips the HCA identity-verification check on submission.',

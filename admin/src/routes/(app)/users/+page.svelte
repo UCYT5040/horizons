@@ -456,6 +456,9 @@
                                     <span class="text-ds-text-placeholder">·</span>
                                     Hackatime: <span class={user.hackatimeAccount ? '' : 'text-ds-text-placeholder'}>{#if user.hackatimeAccount}{@render highlighted(user.hackatimeAccount)}{:else}not linked{/if}</span>
                                 </p>
+                                <p class="text-sm text-ds-text-secondary">
+                                    Phone: <span class={user.phoneNumber ? '' : 'text-ds-text-placeholder'}>{#if user.phoneNumber}{@render highlighted(user.phoneNumber)}{#if user.phoneNumberVerified}<span class="ml-1 rounded-xs bg-green-500/15 px-1 text-[11px] text-green-700 dark:text-green-300">verified</span>{:else if user.phoneNumberVerified === false}<span class="text-ds-text-placeholder">(unverified)</span>{/if}{:else}not set{/if}</span>
+                                </p>
                                 <span class="flex flex-wrap gap-3">
                                     <a
                                         href="{base}/projects?field=user&q={encodeURIComponent(user.email)}"

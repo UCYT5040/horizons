@@ -3055,6 +3055,9 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            phoneNumber: string | null;
+            /** @description HCA-reported verification state for the phone number; null when no number is set. */
+            phoneNumberVerified: boolean | null;
             /** @description When true, the user skips the HCA identity-verification check on submission. */
             bypassIdv: boolean;
             roles: string[];

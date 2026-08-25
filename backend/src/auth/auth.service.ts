@@ -44,6 +44,8 @@ interface HackClubIdTokenClaims {
   updated_at?: number;
   email?: string;
   email_verified?: boolean;
+  phone_number?: string;
+  phone_number_verified?: boolean;
   birthdate?: string;
   address?: HackClubAddress;
   slack_id?: string;
@@ -172,7 +174,7 @@ export class AuthService {
       response_type: 'code',
       scope:
         process.env.HACKCLUB_OAUTH_SCOPES ||
-        'openid email name profile birthdate address verification_status slack_id basic_info',
+        'openid email name profile birthdate address verification_status slack_id basic_info phone',
       state,
     });
 
@@ -272,6 +274,8 @@ export class AuthService {
       iat: 0,
       email: userInfo.email,
       email_verified: userInfo.email_verified,
+      phone_number: userInfo.phone_number,
+      phone_number_verified: userInfo.phone_number_verified,
       name: userInfo.name,
       given_name: userInfo.given_name,
       family_name: userInfo.family_name,
@@ -445,6 +449,8 @@ export class AuthService {
           birthday,
           slackUserId,
           verificationStatus,
+          phoneNumber: claims.phone_number || null,
+          phoneNumberVerified: claims.phone_number_verified ?? null,
           addressLine1: claims.address?.street_address?.split('\n')[0] || null,
           addressLine2: claims.address?.street_address?.split('\n')[1] || null,
           city: claims.address?.locality || null,
@@ -522,6 +528,17 @@ export class AuthService {
       existingUser.verificationStatus !== claims.verification_status
     ) {
       updateData.verificationStatus = claims.verification_status;
+    }
+    if (
+      claims.phone_number !== undefined &&
+      (existingUser.phoneNumber ?? null) !== (claims.phone_number || null)
+    ) {
+      // Only overwrite the verified flag when a new number actually arrived —
+      // otherwise a claim without the flag would clobber a known-good value.
+      updateData.phoneNumber = claims.phone_number || null;
+      if (claims.phone_number) {
+        updateData.phoneNumberVerified = claims.phone_number_verified ?? false;
+      }
     }
     if (claims.birthdate) {
       const incomingBirthday = new Date(claims.birthdate);
