@@ -19,6 +19,8 @@ model User {
   slackUserId        String?   @unique @map("slack_user_id")
   slackUsername      String?   @map("slack_username")
   verificationStatus String?   @map("verification_status")
+  phoneNumber         String?  @map("phone_number")
+  phoneNumberVerified Boolean? @map("phone_number_verified")
 
   roles String[] @default(["user"])
 
