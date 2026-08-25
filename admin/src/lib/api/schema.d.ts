@@ -950,6 +950,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/transactions/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminController_exportTransactionLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/transactions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminController_getTransactionDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/reviewer-leaderboard": {
         parameters: {
             query?: never;
@@ -3590,6 +3622,63 @@ export interface components {
             lastName: string | null;
             bypassIdv: boolean;
         };
+        AdminTransactionDetailUserResponse: {
+            userId: number;
+            firstName: string | null;
+            lastName: string | null;
+            email: string;
+            slackUserId: string | null;
+            slackUsername: string | null;
+            phoneNumber: string | null;
+            /** @description HCA-reported verification state; null when no number is set. */
+            phoneNumberVerified: boolean | null;
+            addressLine1: string | null;
+            addressLine2: string | null;
+            city: string | null;
+            state: string | null;
+            zipCode: string | null;
+            country: string | null;
+        };
+        AdminTransactionDetailItemResponse: {
+            itemId: number;
+            name: string;
+            description: string | null;
+            imageUrl: string | null;
+            cost: number | null;
+            shop: {
+                shopId: number;
+                slug: string;
+            } | null;
+        };
+        AdminTransactionDetailVariantResponse: {
+            variantId: number | null;
+            name: string | null;
+            cost: number | null;
+        };
+        AdminTransactionDetailEventResponse: {
+            eventId: number | null;
+            slug: string | null;
+            title: string | null;
+            location: string | null;
+        };
+        /** @description Full buyer identity for admins, including address and phone number. */
+        AdminTransactionDetailResponse: {
+            transactionId: number;
+            kind: "ShopItem" | "EventTicket" | "AdminAdjustment";
+            itemDescription: string;
+            cost: number;
+            isFulfilled: boolean;
+            /** Format: date-time */
+            fulfilledAt: string | null;
+            /** Format: date-time */
+            refundedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            user: components["schemas"]["AdminTransactionDetailUserResponse"];
+            item: components["schemas"]["AdminTransactionDetailItemResponse"] | null;
+            variant: components["schemas"]["AdminTransactionDetailVariantResponse"] | null;
+            event: components["schemas"]["AdminTransactionDetailEventResponse"] | null;
+        };
         ToggleBanDto: {
             banned: boolean;
             /** @description Admin-only note explaining why the user was banned. */
@@ -6170,6 +6259,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LedgerResponse"];
+                };
+            };
+        };
+    };
+    AdminController_exportTransactionLedger: {
+        parameters: {
+            query?: {
+                kind?: "ShopItem" | "EventTicket" | "AdminAdjustment";
+                fulfilled?: boolean;
+                refunded?: boolean;
+                /** @description Search by user identity (email/name/Slack ID), item side, or transaction id. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    AdminController_getTransactionDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTransactionDetailResponse"];
                 };
             };
         };

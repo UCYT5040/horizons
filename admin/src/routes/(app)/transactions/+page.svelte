@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { afterNavigate } from '$app/navigation';
+	import { base } from '$app/paths';
 	import { page } from '$app/state';
 	import { User, Package } from 'lucide-svelte';
 	import { Button, TextField, Tab, Card, Select } from '$lib/components';
@@ -64,6 +65,8 @@
 	let fulfilledFilter = $state<'all' | 'fulfilled' | 'unfulfilled'>('all');
 	let refundedFilter = $state<'all' | 'hide' | 'only'>('all');
 	let search = $state('');
+	// CSV export in progress — disables the button and shows a busy label.
+	let exporting = $state(false);
 	// Flat-view search scope: match user identity (email/name/Slack ID) or
 	// item side (description/item/event). By-user view always matches both.
 	let flatSearchScope = $state<'user' | 'item'>('user');
@@ -263,6 +266,49 @@
 		}
 		return byUser;
 	});
+
+	// Export the current result set as CSV. The backend applies the same kind/
+	// fulfillment/refund filters plus the search box text, and enriches each
+	// row with address + phone info that isn't part of the ledger response.
+	async function exportCsv() {
+		exporting = true;
+		actionError = null;
+		try {
+			const query: {
+				kind?: Kind;
+				fulfilled?: boolean;
+				refunded?: boolean;
+				q?: string;
+			} = {};
+			if (kindFilter !== 'all') query.kind = kindFilter;
+			if (fulfilledFilter === 'fulfilled') query.fulfilled = true;
+			else if (fulfilledFilter === 'unfulfilled') query.fulfilled = false;
+			if (refundedFilter === 'hide') query.refunded = false;
+			else if (refundedFilter === 'only') query.refunded = true;
+			if (search.trim()) query.q = search.trim();
+
+			const { data, error: err } = await api.GET('/api/admin/transactions/export', {
+				params: { query },
+				parseAs: 'text',
+			});
+			if (err || !data) {
+				actionError = 'Export failed';
+				return;
+			}
+			const blob = new Blob([data as unknown as string], { type: 'text/csv' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			const stamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
+			a.href = url;
+			a.download = `transactions-${stamp}.csv`;
+			a.click();
+			URL.revokeObjectURL(url);
+		} catch {
+			actionError = 'Export failed';
+		} finally {
+			exporting = false;
+		}
+	}
 
 	function formatDateTime(d: string): string {
 		const date = new Date(d);
@@ -610,9 +656,14 @@
 				<p class="text-xs text-ds-text-secondary">
 					Showing {filteredEntries.length} of {entries.length} (filtered total: {filteredSpent}h)
 				</p>
-				<Button onclick={loadLedger} disabled={loading}>
-					{loading ? 'Loading…' : 'Refresh'}
-				</Button>
+				<div class="flex items-center gap-2">
+					<Button onclick={exportCsv} disabled={exporting || loading} title="Download the current result set as CSV (includes address and phone info)">
+						{exporting ? 'Exporting…' : 'Export CSV'}
+					</Button>
+					<Button onclick={loadLedger} disabled={loading}>
+						{loading ? 'Loading…' : 'Refresh'}
+					</Button>
+				</div>
 			</div>
 		</div>
 
@@ -624,7 +675,13 @@
 
 		{#snippet ledgerRow(e: LedgerEntry, showUser: boolean)}
 			<tr class="border-b border-ds-border/60 hover:bg-ds-surface2/30">
-				<td class="px-3 py-2 font-mono text-xs text-ds-text-secondary">#{e.transactionId}</td>
+				<td class="px-3 py-2 font-mono text-xs text-ds-text-secondary">
+					<a
+						href="{base}/transactions/{e.transactionId}"
+						class="hover:text-ds-text hover:underline"
+						title="Open transaction detail"
+					>#{e.transactionId}</a>
+				</td>
 				<td class="px-3 py-2">
 					<span class="inline-flex items-center rounded border px-2 py-0.5 text-[11px] font-medium {kindColor(e.kind)}">
 						{kindLabel(e.kind)}
