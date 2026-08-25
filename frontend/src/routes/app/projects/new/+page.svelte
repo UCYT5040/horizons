@@ -4,6 +4,7 @@
 	import { api, type components } from '$lib/api';
 	import { FormField, FormTextarea, FormSelect, FileUpload, FormCard, FormError, FormSubmitButton } from '$lib/components/form';
 	import { invalidateAllProjectCaches } from '$lib/store/projectDetailCache';
+	import { userStore } from '$lib/store/userCache';
 	import BackButton from '$lib/components/BackButton.svelte';
 
 	type ProjectType = components['schemas']['CreateProjectDto']['projectType'];
@@ -26,6 +27,9 @@
 	let mediaUrl = $state<string | null>(null);
 	let mediaPreview = $state<string | null>(null);
 	let hackatimeLinked = $state(false);
+
+	userStore.load();
+	let agedOut = $derived($userStore.loaded && $userStore.agedOut);
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
@@ -71,6 +75,18 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="relative size-full">
+	{#if agedOut}
+		<FormCard title="Create New Project" width="w-130">
+			<div class="flex flex-col gap-2 w-full">
+				<p class="text-sm opacity-80">
+					You've aged out of Hack Club, so you can't start new projects here.
+				</p>
+				<p class="text-sm opacity-80">
+					You can still finish and ship the projects you created before your 19th birthday, and spend your hours in the shop.
+				</p>
+			</div>
+		</FormCard>
+	{:else}
 	<FormCard title="Create New Project" width="w-130">
 		<div class="flex flex-col gap-2 w-full">
 			<FormField label="Title" id="title" placeholder="Horizons" maxlength={30} bind:value={title} />
@@ -88,6 +104,7 @@
 			<FormSubmitButton label="CREATE PROJECT" loadingLabel="CREATING..." onclick={handleSubmit} loading={submitting} />
 		</div>
 	</FormCard>
+	{/if}
 
 	<BackButton onclick={() => goto('/app/projects')} />
 </div>

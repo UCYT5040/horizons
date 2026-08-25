@@ -272,7 +272,7 @@ export class ShopService {
       `[Shop Purchase] Starting purchase for userId: ${userId}, itemId: ${itemId}, variantId: ${variantId || 'none'}, quantity: ${quantity}`,
     );
 
-    await this.balanceService.verifyEligibility(userId, 'Shop Purchase');
+    await this.balanceService.verifyEligibility(userId, 'Shop Purchase', undefined, { allowAgedOut: true });
 
     const item = await this.prisma.shopItem.findUnique({
       where: { itemId },

@@ -3567,6 +3567,61 @@ export interface components {
             entries: components["schemas"]["LedgerEntryResponse"][];
             summary: components["schemas"]["LedgerSummaryResponse"];
         };
+        AdminTransactionDetailUserResponse: {
+            userId: number;
+            firstName: string | null;
+            lastName: string | null;
+            email: string;
+            slackUserId: string | null;
+            slackUsername: string | null;
+            phoneNumber: string | null;
+            /** @description HCA-reported verification state; null when no number is set. */
+            phoneNumberVerified: boolean | null;
+            addressLine1: string | null;
+            addressLine2: string | null;
+            city: string | null;
+            state: string | null;
+            zipCode: string | null;
+            country: string | null;
+        };
+        AdminTransactionDetailItemResponse: {
+            itemId: number;
+            name: string;
+            description: string | null;
+            imageUrl: string | null;
+            cost: number | null;
+            shop: Record<string, never> | null;
+        };
+        AdminTransactionDetailVariantResponse: {
+            variantId: number | null;
+            name: string | null;
+            cost: number | null;
+        };
+        AdminTransactionDetailEventResponse: {
+            eventId: number | null;
+            slug: string | null;
+            title: string | null;
+            location: string | null;
+        };
+        AdminTransactionDetailResponse: {
+            transactionId: number;
+            /** @enum {string} */
+            kind: "ShopItem" | "EventTicket" | "AdminAdjustment";
+            itemDescription: string;
+            cost: number;
+            isFulfilled: boolean;
+            /** Format: date-time */
+            fulfilledAt: string | null;
+            /** Format: date-time */
+            refundedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Full buyer identity for admins, including address and phone number. */
+            user: components["schemas"]["AdminTransactionDetailUserResponse"];
+            item: components["schemas"]["AdminTransactionDetailItemResponse"] | null;
+            variant: components["schemas"]["AdminTransactionDetailVariantResponse"] | null;
+            event: components["schemas"]["AdminTransactionDetailEventResponse"] | null;
+        };
         ReviewerLeaderboardEntry: {
             reviewerId: string;
             firstName: string | null;
@@ -3621,63 +3676,6 @@ export interface components {
             firstName: string | null;
             lastName: string | null;
             bypassIdv: boolean;
-        };
-        AdminTransactionDetailUserResponse: {
-            userId: number;
-            firstName: string | null;
-            lastName: string | null;
-            email: string;
-            slackUserId: string | null;
-            slackUsername: string | null;
-            phoneNumber: string | null;
-            /** @description HCA-reported verification state; null when no number is set. */
-            phoneNumberVerified: boolean | null;
-            addressLine1: string | null;
-            addressLine2: string | null;
-            city: string | null;
-            state: string | null;
-            zipCode: string | null;
-            country: string | null;
-        };
-        AdminTransactionDetailItemResponse: {
-            itemId: number;
-            name: string;
-            description: string | null;
-            imageUrl: string | null;
-            cost: number | null;
-            shop: {
-                shopId: number;
-                slug: string;
-            } | null;
-        };
-        AdminTransactionDetailVariantResponse: {
-            variantId: number | null;
-            name: string | null;
-            cost: number | null;
-        };
-        AdminTransactionDetailEventResponse: {
-            eventId: number | null;
-            slug: string | null;
-            title: string | null;
-            location: string | null;
-        };
-        /** @description Full buyer identity for admins, including address and phone number. */
-        AdminTransactionDetailResponse: {
-            transactionId: number;
-            kind: "ShopItem" | "EventTicket" | "AdminAdjustment";
-            itemDescription: string;
-            cost: number;
-            isFulfilled: boolean;
-            /** Format: date-time */
-            fulfilledAt: string | null;
-            /** Format: date-time */
-            refundedAt: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            user: components["schemas"]["AdminTransactionDetailUserResponse"];
-            item: components["schemas"]["AdminTransactionDetailItemResponse"] | null;
-            variant: components["schemas"]["AdminTransactionDetailVariantResponse"] | null;
-            event: components["schemas"]["AdminTransactionDetailEventResponse"] | null;
         };
         ToggleBanDto: {
             banned: boolean;
@@ -4153,8 +4151,6 @@ export interface components {
             /** @enum {string} */
             approvalStatus?: "pending" | "approved" | "rejected";
             approvedHours?: number;
-            aiHours?: number;
-            aiReductionApplied?: boolean;
             userFeedback?: string;
             hoursJustification?: string;
             adminComment?: string;

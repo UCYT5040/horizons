@@ -631,6 +631,9 @@ export class ReviewerService {
         submissionId: true,
         approvalStatus: true,
         sentToAdminAt: true,
+        projectId: true,
+        hackatimeHours: true,
+        project: { select: { nowHackatimeHours: true } },
       },
     });
 
@@ -681,8 +684,34 @@ export class ReviewerService {
     if (dto.userFeedback !== undefined) {
       fieldUpdates.hoursJustification = dto.userFeedback;
     }
+    // Server-side backstop for the AI snapshot: an approval without an explicit
+    // aiHours figure means the client never measured one (breakdown still
+    // loading, Hackatime call failed). Measure here rather than recording an
+    // implicit zero — same logic as quick approve. An absent aiReductionApplied
+    // travels with it so the automatic 1/3 reduction applies.
+    let computedAiHours: number | null | undefined;
     if (dto.aiHours !== undefined) {
       fieldUpdates.aiHours = dto.aiHours;
+    } else if (dto.approvalStatus === 'approved') {
+      const hackatimeHours =
+        submission.hackatimeHours ?? submission.project.nowHackatimeHours ?? 0;
+      let aiHours: number | null = null;
+      try {
+        const breakdown = await this.hackatimeService.getProjectHourBreakdown(
+          submission.projectId,
+        );
+        if (breakdown.totalHours > 0 && breakdown.aiHours > 0) {
+          const share = Math.min(1, breakdown.aiHours / breakdown.totalHours);
+          aiHours = hackatimeHours * share;
+        }
+      } catch {
+        aiHours = null;
+      }
+      fieldUpdates.aiHours = aiHours;
+      if (dto.aiReductionApplied === undefined) {
+        fieldUpdates.aiReductionApplied = aiHours != null ? true : null;
+      }
+      computedAiHours = aiHours;
     }
     if (dto.aiReductionApplied !== undefined) {
       fieldUpdates.aiReductionApplied = dto.aiReductionApplied;
@@ -715,7 +744,14 @@ export class ReviewerService {
       auditChanges.previousStatus = submission.approvalStatus;
     if (dto.approvedHours !== undefined)
       auditChanges.approvedHours = dto.approvedHours;
-    if (dto.aiHours !== undefined) auditChanges.aiHours = dto.aiHours;
+    if (dto.aiHours !== undefined) {
+      auditChanges.aiHours = dto.aiHours;
+    } else if (computedAiHours !== undefined) {
+      // Snapshot was measured server-side (client sent no figure) — record
+      // what was computed so the audit trail shows where the number came from.
+      auditChanges.aiHours = computedAiHours;
+      auditChanges.aiHoursSource = 'server-computed';
+    }
     // Worth its own audit entry: unticking is a deliberate override of the
     // automatic 1/3 AI reduction, and reviewers get asked about those.
     if (dto.aiReductionApplied !== undefined)

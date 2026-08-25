@@ -12,6 +12,7 @@ import { TicketQualifyEmailService } from '../ticket-qualify-email/ticket-qualif
 import { SlackService } from '../slack/slack.service';
 import { SlackChannelsService } from '../slack-channels/slack-channels.service';
 import { StreakService } from '../streaks/streak.service';
+import { isAgedOut } from '../utils/age';
 import { Role } from './enums/role.enum';
 
 import { createHmac } from 'crypto';
@@ -304,8 +305,12 @@ export class AuthService {
       Role.EventViewer,
       Role.Superadmin,
     ];
+    // Only gate first-time signups. Users who joined while eligible but have
+    // since aged out of Hack Club must still be able to log in so they can
+    // ship their pre-existing projects and spend their balance.
     if (
       claims.ysws_eligible === false &&
+      isNewUser &&
       !user.roles.some((r) => yswsExemptRoles.includes(r))
     ) {
       throw new ForbiddenException('You are not eligible for YSWS.');
@@ -621,6 +626,7 @@ export class AuthService {
             lastName: true,
             email: true,
             birthday: true,
+            ageOverride: true,
             slackUserId: true,
             verificationStatus: true,
             roles: true,
@@ -725,11 +731,14 @@ export class AuthService {
       timezone: user.timezone ?? null,
     });
 
+    const agedOut = isAgedOut(user.birthday, user.ageOverride);
+
     return {
       ...userWithoutAddress,
       currentStreak: decayedStreak,
       hasAddress,
       slackDisplayName,
+      agedOut,
     };
   }
 

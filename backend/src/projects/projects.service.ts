@@ -21,6 +21,7 @@ import { HackatimeService } from '../hackatime/hackatime.service';
 import { SlackService } from '../slack/slack.service';
 import { BalanceService } from '../balance/balance.service';
 import { AUDIT_ACTIONS } from '../submission-approval/audit-actions';
+import { calculateAge, isAgedOut } from '../utils/age';
 
 @Injectable()
 export class ProjectsService {
@@ -170,6 +171,23 @@ export class ProjectsService {
   }
 
   async createProject(createProjectDto: CreateProjectDto, userId: number) {
+    // Aged-out users (19+) keep ownership of existing projects and can still
+    // ship them, but starting fresh ones is reserved for current members.
+    const creator = await this.prisma.user.findUnique({
+      where: { userId },
+      select: { birthday: true, ageOverride: true },
+    });
+
+    if (!creator) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (isAgedOut(creator.birthday, creator.ageOverride)) {
+      throw new ForbiddenException(
+        "You've aged out of Hack Club, so you can't start new projects. You can still finish and ship the projects you already created.",
+      );
+    }
+
     const lockKey = `project-create-lock:${userId}`;
     const lockValue = randomBytes(16).toString('hex');
     const lockTTL = 10;
@@ -436,18 +454,29 @@ export class ProjectsService {
       );
     }
 
-    if (this.calculateAge(user.birthday) >= 19 && !user.ageOverride) {
-      throw new ForbiddenException('You must be under 19 to submit projects.');
+    // Aged-out users (19+) can still ship projects that existed before their
+    // 19th birthday; only projects started after aging out are blocked.
+    if (isAgedOut(user.birthday, user.ageOverride)) {
+      const nineteenthBirthday = new Date(user.birthday);
+      nineteenthBirthday.setFullYear(nineteenthBirthday.getFullYear() + 19);
+      if (project.createdAt >= nineteenthBirthday) {
+        throw new ForbiddenException(
+          'This project was created after you aged out of Hack Club, so it can no longer be shipped.',
+        );
+      }
     }
 
     // IDV gate: submitting requires a verified-eligible identity through Hack
     // Club Auth (same check as shop purchases and event tickets), unless an
-    // admin set bypassIdv on the user.
+    // admin set bypassIdv on the user. Aged-out users are grandfathered past
+    // it — the external check fails at 19+ and would block shipping projects
+    // they created while eligible.
     if (!user.bypassIdv) {
       await this.balanceService.verifyEligibility(
         userId,
         'Project Submission',
         'You must verify your identity through Hack Club Auth (auth.hackclub.com) before submitting.',
+        { allowAgedOut: true },
       );
     }
 
@@ -1220,18 +1249,6 @@ export class ProjectsService {
     return durationsMap;
   }
 
-  private calculateAge(birthday: Date) {
-    const today = new Date();
-    let age = today.getFullYear() - birthday.getFullYear();
-    const monthDiff = today.getMonth() - birthday.getMonth();
-    if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < birthday.getDate())
-    ) {
-      age -= 1;
-    }
-    return age;
-  }
 
   async getApprovedProjects() {
     const projects = await this.prisma.project.findMany({

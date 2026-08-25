@@ -354,8 +354,13 @@
 				body: {
 					approvalStatus: 'approved',
 					approvedHours,
-					aiHours: effectiveAiHours ?? 0,
-					aiReductionApplied: reduceAiHours,
+					// Absent when the breakdown never loaded — the backend then
+					// measures the AI snapshot server-side. A literal 0 here would
+					// be recorded as "measured, none found" and the justification
+					// would assert no AI time exists.
+					...(effectiveAiHours != null
+						? { aiHours: effectiveAiHours, aiReductionApplied: reduceAiHours }
+						: {}),
 					hoursJustification: hoursJustification || undefined,
 					userFeedback: approveComment || undefined,
 					sendEmail,
@@ -439,8 +444,9 @@
 							userFeedback: approveComment,
 							hoursJustification,
 							approvedHours,
-							aiHours: effectiveAiHours ?? 0,
-							aiReductionApplied: reduceAiHours,
+							...(effectiveAiHours != null
+								? { aiHours: effectiveAiHours, aiReductionApplied: reduceAiHours }
+								: {}),
 						}
 					: { userFeedback: changesComment };
 			const { error } = await api.PUT('/api/reviewer/submissions/{id}/review', {
