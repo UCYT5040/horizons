@@ -11,7 +11,7 @@ import {
   Req,
   ParseIntPipe,
 } from '@nestjs/common';
-import { ApiOkResponse } from '@nestjs/swagger';
+import { ApiOkResponse, ApiQuery } from '@nestjs/swagger';
 import { Request } from 'express';
 import { ReviewerService } from './reviewer.service';
 import {
@@ -231,11 +231,29 @@ export class ReviewerController {
     return this.reviewerService.getProjectHackatimeBreakdown(id);
   }
 
-  /** Live AI vs non-AI hour split (by Hackatime category), per project */
+  /** Live AI vs non-AI hour split (by Hackatime category), per project.
+   *  Pass `submissionId` to also get a `ship` slice bounded by that
+   *  submission's date; otherwise the latest submission bounds it. */
   @Get('projects/:id/hour-breakdown')
   @ApiOkResponse({ type: ProjectHourBreakdownResponse })
-  async getProjectHourBreakdown(@Param('id', ParseIntPipe) id: number) {
-    return this.reviewerService.getProjectHourBreakdown(id);
+  @ApiQuery({
+    name: 'submissionId',
+    required: false,
+    type: Number,
+    description: 'Bound the ship slice to this submission; defaults to latest',
+  })
+  async getProjectHourBreakdown(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('submissionId') submissionId?: string,
+  ) {
+    // Strict integer parse — Number("12abc") is NaN, so garbage falls back
+    // to "latest submission" instead of silently truncating to 12. The
+    // truthiness guard keeps "?submissionId=" (empty string) from becoming 0.
+    const parsedSubmissionId = submissionId ? Number(submissionId) : NaN;
+    return this.reviewerService.getProjectHourBreakdown(
+      id,
+      Number.isInteger(parsedSubmissionId) ? parsedSubmissionId : undefined,
+    );
   }
 
   /** Get the shared note for a project */

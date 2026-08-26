@@ -34,6 +34,11 @@
 		/** Total hours from that same live breakdown. Paired with aiHours to get
 		 *  the AI share — the absolute figures aren't comparable to hackatimeHours. */
 		totalHours?: number | null;
+		/** Which Hackatime window the aiHours/totalHours pair was measured over:
+		 *  'ship' = cutoff → submission date, 'overall' = cutoff → now. Shown so
+		 *  the reviewer knows what the AI share covers (toggle lives on the
+		 *  Hours Breakdown card). */
+		aiScope?: 'ship' | 'overall';
 		/** AI hours recorded on the submission when it was last reviewed. */
 		priorAiHours?: number | null;
 		/** Whether the AI reduction checkbox was ticked the last time this
@@ -73,6 +78,7 @@
 		hackatimeHours,
 		aiHours = null,
 		totalHours = null,
+		aiScope = 'ship',
 		priorAiHours = null,
 		priorAiReductionApplied = null,
 		joeFraudPassed = null,
@@ -680,8 +686,9 @@
 						{:else if aiShare != null && effectiveAiHours != null && effectiveAiHours >= 0.05}
 							<br />
 							<span class="opacity-80">
-								{Math.round(aiShare * 100)}% of logged time is AI, applied to the
-								{fmtH(hackatimeHours ?? 0)} tracked at submission.
+								{Math.round(aiShare * 100)}% of logged time is AI
+								({aiScope === 'ship' ? 'up to the submission date' : 'overall, including post-ship activity'}),
+								applied to the {fmtH(hackatimeHours ?? 0)} tracked at submission.
 							</span>
 						{/if}
 					</div>

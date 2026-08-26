@@ -555,19 +555,41 @@ export class HackatimeService {
    * unreliable — only the minimal `filter_by_category` form returns the
    * correct slice, and that's aggregate-only.
    *
+   * The category-filtered calls authenticate with the admin `HACKATIME_API_KEY`
+   * rather than the user's OAuth token: a stale/revoked user token would throw
+   * here and reviewers would silently approve with no AI snapshot (both fields
+   * null) even when Hackatime had categorization data on record.
+   *
    * `totalHours` here is non-deduped — it comes from the per-project
    * breakdown summed up, which double-counts minutes the user logged
    * against two projects at once. We keep total and AI on the same
    * non-deduped form so the AI/non-AI ratio is internally consistent;
    * use `fetchDeduplicatedTotalSeconds` (via `calculateProjectHours`)
    * when you need the deduped figure.
+   *
+   * Alongside the all-time window (cutoff → now) the response carries a
+   * `ship` slice bounded by the submission date (`submissionId`, or the
+   * project's latest submission when omitted). The ship slice is what the
+   * approval math should use: the all-time window keeps growing after the
+   * user ships, which dilutes or inflates the AI share relative to the
+   * frozen `hackatimeHours` figure.
    */
-  async getProjectHourBreakdown(projectId: number): Promise<{
+  async getProjectHourBreakdown(
+    projectId: number,
+    submissionId?: number,
+  ): Promise<{
     totalHours: number;
     aiHours: number;
     nonAiHours: number;
     perProject: Array<{ name: string; hours: number }>;
     startDate: string;
+    ship: {
+      totalHours: number;
+      aiHours: number;
+      nonAiHours: number;
+      startDate: string;
+      endDate: string;
+    } | null;
   }> {
     const project = await this.prisma.project.findUnique({
       where: { projectId },
@@ -583,6 +605,23 @@ export class HackatimeService {
       },
     });
 
+    // Ship window end: the exact submission instant, expressed in UTC-12 —
+    // Hackatime's end_date is exclusive and its parser is only known to
+    // accept ISO datetimes with numeric offsets (not `Z`), so shift the
+    // instant instead of changing it.
+    const submission = await this.prisma.submission.findFirst({
+      where: submissionId
+        ? { submissionId, projectId }
+        : { projectId },
+      orderBy: { createdAt: 'desc' },
+      select: { createdAt: true },
+    });
+    let shipEndDate: string | null = null;
+    if (submission) {
+      const shifted = new Date(submission.createdAt.getTime() - 12 * 3_600_000);
+      shipEndDate = `${shifted.toISOString().slice(0, 19)}-12:00`;
+    }
+
     const cutoffDate =
       project?.user?.hackatimeStartDate ??
       new Date(process.env.HACKATIME_CUTOFF_DATE || '2026-02-21T00:00:00Z');
@@ -594,32 +633,58 @@ export class HackatimeService {
       nonAiHours: 0,
       perProject: [] as Array<{ name: string; hours: number }>,
       startDate,
+      ship: null as {
+        totalHours: number;
+        aiHours: number;
+        nonAiHours: number;
+        startDate: string;
+        endDate: string;
+      } | null,
     };
 
     if (!project || !project.nowHackatimeProjects?.length) return empty;
 
     const names = project.nowHackatimeProjects;
     const account = project.user?.hackatimeAccount;
+    // The user's OAuth token is optional here: the AI-category calls below
+    // authenticate with HACKATIME_API_KEY, so a missing/expired token only
+    // costs us the per-project duration list.
     const token = project.user?.hackatimeAccessToken;
 
-    if (!account || !token) {
+    if (!account) {
       return {
         ...empty,
         perProject: names.map((name) => ({ name, hours: 0 })),
       };
     }
 
-    const [totalSeconds, aiSeconds, perProjectDurations] = await Promise.all([
-      this.fetchBreakdownSeconds(account, names, token, cutoffDate),
-      this.fetchBreakdownSeconds(
-        account,
-        names,
-        token,
-        cutoffDate,
-        this.AI_BREAKDOWN_CATEGORIES,
-      ),
-      this.fetchHackatimePerProjectDurations(account, names, token, cutoffDate),
-    ]);
+    const [totalSeconds, aiSeconds, perProjectDurations, shipTotalSeconds, shipAiSeconds] =
+      await Promise.all([
+        this.fetchBreakdownSeconds(account, names, token, cutoffDate),
+        this.fetchBreakdownSeconds(
+          account,
+          names,
+          token,
+          cutoffDate,
+          this.AI_BREAKDOWN_CATEGORIES,
+        ),
+        token
+          ? this.fetchHackatimePerProjectDurations(account, names, token, cutoffDate)
+          : Promise.resolve(new Map<string, number>()),
+        shipEndDate
+          ? this.fetchBreakdownSeconds(account, names, token, cutoffDate, undefined, shipEndDate)
+          : Promise.resolve(0),
+        shipEndDate
+          ? this.fetchBreakdownSeconds(
+              account,
+              names,
+              token,
+              cutoffDate,
+              this.AI_BREAKDOWN_CATEGORIES,
+              shipEndDate,
+            )
+          : Promise.resolve(0),
+      ]);
 
     const round1 = (n: number) => Math.round(n * 10) / 10;
     const totalHours = round1(totalSeconds / 3600);
@@ -632,12 +697,27 @@ export class HackatimeService {
       hours: round1((perProjectDurations.get(name) ?? 0) / 3600),
     }));
 
+    const ship = shipEndDate
+      ? (() => {
+          const shipTotalHours = round1(shipTotalSeconds / 3600);
+          const shipAiHours = round1(shipAiSeconds / 3600);
+          return {
+            totalHours: shipTotalHours,
+            aiHours: Math.min(shipAiHours, shipTotalHours),
+            nonAiHours: Math.max(0, round1(shipTotalHours - shipAiHours)),
+            startDate,
+            endDate: shipEndDate,
+          };
+        })()
+      : null;
+
     return {
       totalHours,
       aiHours,
       nonAiHours,
       perProject,
       startDate,
+      ship,
     };
   }
 
@@ -869,6 +949,11 @@ export class HackatimeService {
   // required: spaces in category names (e.g. "ai coding") must be `%20`,
   // not `+`, and the comma separator must stay unencoded.
   //
+  // Authenticates with the admin HACKATIME_API_KEY so reviewer-facing AI data
+  // doesn't die when a user's OAuth token is stale or revoked; falls back to
+  // the user token if the key isn't configured. Same tradeoff as the other
+  // server-side key call sites (streaks, admin recalc).
+  //
   // NOT deduped — this endpoint shape returns the raw sum across the
   // listed projects, so it may exceed `fetchDeduplicatedTotalSeconds` for
   // the same user. That's fine for the breakdown because both the total
@@ -878,11 +963,22 @@ export class HackatimeService {
   private async fetchBreakdownSeconds(
     hackatimeAccount: string,
     projectNames: string[],
-    accessToken: string,
+    accessToken: string | null | undefined,
     cutoffDate: Date,
     categories?: string[],
+    // Optional exclusive end boundary. Must be a full ISO datetime with a
+    // UTC offset (Hackatime parses date-only end_date inconsistently); the
+    // category slice is only known to work with this exact param shape.
+    endDate?: string,
   ): Promise<number> {
     if (projectNames.length === 0) return 0;
+
+    const apiKey = process.env.HACKATIME_API_KEY;
+    if (!apiKey && !accessToken) {
+      throw new Error(
+        `No Hackatime auth available for breakdown (no HACKATIME_API_KEY, no user token) for ${hackatimeAccount}`,
+      );
+    }
 
     const startDate = cutoffDate.toISOString().split('T')[0];
     const params = new URLSearchParams({
@@ -890,6 +986,9 @@ export class HackatimeService {
       filter_by_project: projectNames.join(','),
       start_date: startDate,
     });
+    if (endDate) {
+      params.set('end_date', endDate);
+    }
     if (categories && categories.length > 0) {
       params.set('filter_by_category', categories.join(','));
     }
@@ -901,15 +1000,18 @@ export class HackatimeService {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${apiKey ?? accessToken}`,
         },
       });
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          throw new UnauthorizedException(
-            'Hackatime denied access to your stats. Enable "Public Stats Lookup" in your Hackatime settings, or re-link your Hackatime account.',
-          );
+          // Message depends on whose credential was rejected: with the admin
+          // key this is a server-side config problem, not a user action item.
+          const msg = apiKey
+            ? 'Hackatime rejected the admin API key for stats lookup — check HACKATIME_API_KEY.'
+            : 'Hackatime denied access to your stats. Enable "Public Stats Lookup" in your Hackatime settings, or re-link your Hackatime account.';
+          throw new UnauthorizedException(msg);
         }
         throw new Error(
           `Hackatime category stats returned ${response.status} for ${hackatimeAccount}`,

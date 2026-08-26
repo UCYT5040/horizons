@@ -154,15 +154,48 @@
 	// Aggregate AI vs non-AI + per-project totals, live-fetched. Per-project
 	// rows are raw (NOT deduped) totals — they may sum to more than
 	// `totalHours` when the user logged overlapping time across projects.
+	// `ship` bounds the same query to the submission window (cutoff → ship
+	// date); the all-time window keeps growing after the user ships, so the
+	// ship slice is the one whose AI share matches the frozen hackatimeHours.
+	type AiWindow = {
+		totalHours: number;
+		aiHours: number;
+		nonAiHours: number;
+		startDate: string;
+		endDate?: string;
+	};
 	type HourBreakdown = {
 		totalHours: number;
 		aiHours: number;
 		nonAiHours: number;
 		perProject: { name: string; hours: number }[];
 		startDate: string;
+		ship: AiWindow | null;
 	};
 	let hourBreakdown = $state<HourBreakdown | null>(null);
 	let hourBreakdownLoading = $state(false);
+	// Which Hackatime window the breakdown card and verdict math read from.
+	// Defaults to the submission-bounded slice; "overall" is the legacy view
+	// (cutoff → now) kept for spotting post-ship activity.
+	let aiScope = $state<'ship' | 'overall'>('ship');
+	const activeAiWindow = $derived(
+		hourBreakdown
+			? aiScope === 'ship' && hourBreakdown.ship
+				? hourBreakdown.ship
+				: {
+						totalHours: hourBreakdown.totalHours,
+						aiHours: hourBreakdown.aiHours,
+						nonAiHours: hourBreakdown.nonAiHours,
+						startDate: hourBreakdown.startDate,
+					}
+			: null,
+	);
+	// What the verdict panel should *label* the window as — falls back to
+	// 'overall' if the ship slice is missing so the wording never lies about
+	// which numbers are on screen.
+	const effectiveAiScope = $derived(
+		aiScope === 'ship' && hourBreakdown?.ship ? 'ship' : 'overall',
+	);
 	// Lapse timelapses recorded against this project's linked Hackatime projects.
 	type ProjectLapses = components['schemas']['ProjectLapsesResponse'];
 	let projectLapses = $state<ProjectLapses | null>(null);
@@ -472,7 +505,7 @@
 			void loadNotes(data.project.projectId, data.project.user.userId);
 			void loadChecklist(submissionId);
 			void loadManifestLookup(data.project.projectId);
-			void loadHourBreakdown(data.project.projectId);
+			void loadHourBreakdown(data.project.projectId, data.submissionId);
 			void loadLapses(data.project.projectId);
 		} catch (error) {
 			console.error('Failed to load submission detail:', error);
@@ -481,12 +514,13 @@
 		}
 	}
 
-	async function loadHourBreakdown(projectId: number) {
+	async function loadHourBreakdown(projectId: number, submissionId: number) {
 		hourBreakdownLoading = true;
+		aiScope = 'ship';
 		try {
 			const { data } = await api.GET(
 				'/api/reviewer/projects/{id}/hour-breakdown',
-				{ params: { path: { id: projectId } } },
+				{ params: { path: { id: projectId }, query: { submissionId } } },
 			);
 			hourBreakdown = (data as HourBreakdown | undefined) ?? null;
 		} catch {
@@ -774,11 +808,14 @@
 				/>
 
 				<ProjectHourBreakdown
-					totalHours={hourBreakdown?.totalHours ?? null}
-					aiHours={hourBreakdown?.aiHours ?? null}
-					nonAiHours={hourBreakdown?.nonAiHours ?? null}
+					bind:scope={aiScope}
+					totalHours={activeAiWindow?.totalHours ?? null}
+					aiHours={activeAiWindow?.aiHours ?? null}
+					nonAiHours={activeAiWindow?.nonAiHours ?? null}
+					startDate={activeAiWindow?.startDate ?? null}
+					endDate={activeAiWindow?.endDate ?? null}
+					hasShipWindow={!!hourBreakdown?.ship}
 					perProject={hourBreakdown?.perProject ?? []}
-					startDate={hourBreakdown?.startDate ?? null}
 					loading={hourBreakdownLoading}
 				/>
 
@@ -858,8 +895,9 @@
 								onSentToAdminChange={handleSentToAdminChange}
 								hasAirtableRecord={!!currentSubmission.airtableRecId}
 								hackatimeHours={currentSubmission.hackatimeHours}
-								aiHours={hourBreakdown?.aiHours ?? null}
-								totalHours={hourBreakdown?.totalHours ?? null}
+								aiHours={activeAiWindow?.aiHours ?? null}
+								totalHours={activeAiWindow?.totalHours ?? null}
+								aiScope={effectiveAiScope}
 								priorAiHours={currentSubmission.aiHours ?? null}
 								priorAiReductionApplied={currentSubmission.aiReductionApplied ?? null}
 								joeFraudPassed={currentSubmission.project.joeFraudPassed ?? null}

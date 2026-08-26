@@ -4218,12 +4218,20 @@ export interface components {
             name: string;
             hours: number;
         };
+        ProjectHourBreakdownShipWindow: {
+            totalHours: number;
+            aiHours: number;
+            nonAiHours: number;
+            startDate: string;
+            endDate: string;
+        };
         ProjectHourBreakdownResponse: {
             totalHours: number;
             aiHours: number;
             nonAiHours: number;
             perProject: components["schemas"]["ProjectHourBreakdownPerProject"][];
             startDate: string;
+            ship: components["schemas"]["ProjectHourBreakdownShipWindow"] | null;
         };
         NoteResponse: {
             content: string;
@@ -7244,7 +7252,9 @@ export interface operations {
     };
     ReviewerController_getProjectHourBreakdown: {
         parameters: {
-            query?: never;
+            query?: {
+                submissionId?: number;
+            };
             header?: never;
             path: {
                 id: number;

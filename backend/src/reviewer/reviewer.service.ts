@@ -75,10 +75,11 @@ export class ReviewerService {
 
   /**
    * Per-project hour breakdown for a project: aggregate plus per-Hackatime-
-   * project rows, each split into AI vs non-AI by Hackatime category.
+   * project rows, each split into AI vs non-AI by Hackatime category. Includes
+   * a `ship` slice bounded by the submission date when `submissionId` is given.
    */
-  async getProjectHourBreakdown(projectId: number) {
-    return this.hackatimeService.getProjectHourBreakdown(projectId);
+  async getProjectHourBreakdown(projectId: number, submissionId?: number) {
+    return this.hackatimeService.getProjectHourBreakdown(projectId, submissionId);
   }
 
   /**
