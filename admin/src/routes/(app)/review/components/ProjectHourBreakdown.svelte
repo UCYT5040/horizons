@@ -12,6 +12,13 @@
 		nonAiHours: number | null;
 		perProject?: PerProject[];
 		startDate?: string | null;
+		/** Exclusive end of the window — the submission instant (ISO datetime
+		 *  in UTC-12). Set only on the ship-bounded slice. */
+		endDate?: string | null;
+		/** Whether the backend returned a ship-bounded slice to toggle to. */
+		hasShipWindow?: boolean;
+		/** 'ship' = cutoff → submission date; 'overall' = cutoff → now. */
+		scope?: 'ship' | 'overall';
 		loading?: boolean;
 	}
 
@@ -21,14 +28,18 @@
 		nonAiHours,
 		perProject = [],
 		startDate = null,
+		endDate = null,
+		hasShipWindow = false,
+		scope = $bindable('ship'),
 		loading = false,
 	}: Props = $props();
 
 	// "Feb 21" / "May 14, 2027". Year only when the date isn't this year so
 	// short windows stay compact. Treat the YYYY-MM-DD input as UTC midnight
-	// so the displayed day matches the backend's window edge.
+	// so the displayed day matches the backend's window edge. Tolerates a
+	// full ISO datetime (the ship window's exclusive end instant).
 	function fmtDate(ymd: string): string {
-		const [y, m, d] = ymd.split('-').map(Number);
+		const [y, m, d] = ymd.slice(0, 10).split('-').map(Number);
 		const dt = new Date(Date.UTC(y, m - 1, d));
 		const thisYear = new Date().getUTCFullYear();
 		return dt.toLocaleDateString('en-US', {
@@ -39,7 +50,13 @@
 		});
 	}
 
-	const sinceLabel = $derived(startDate ? `since ${fmtDate(startDate)}` : null);
+	const sinceLabel = $derived(
+		startDate
+			? endDate
+				? `${fmtDate(startDate)} – ${fmtDate(endDate)}`
+				: `since ${fmtDate(startDate)}`
+			: null,
+	);
 
 	let expanded = $state(true);
 
@@ -97,6 +114,36 @@
 
 	{#if expanded}
 		<div class="px-4 pb-4">
+			{#if hasShipWindow && !loading}
+				<!-- Window scope: ship-bounded slice vs everything up to now. The
+				     verdict panel reads the same selected window, so switching this
+				     changes the AI-share math too. -->
+				<div class="flex items-center gap-1 mb-3" role="group" aria-label="Hackatime window">
+					<button
+						type="button"
+						class="px-2.5 py-1 rounded-full border text-[11px] font-medium cursor-pointer transition-colors duration-150
+							{scope === 'ship'
+								? 'bg-rv-accent/15 border-rv-accent text-rv-accent'
+								: 'border-rv-border bg-transparent text-rv-dim hover:text-rv-text'}"
+						onclick={() => (scope = 'ship')}
+					>
+						This ship
+					</button>
+					<button
+						type="button"
+						class="px-2.5 py-1 rounded-full border text-[11px] font-medium cursor-pointer transition-colors duration-150
+							{scope === 'overall'
+								? 'bg-rv-accent/15 border-rv-accent text-rv-accent'
+								: 'border-rv-border bg-transparent text-rv-dim hover:text-rv-text'}"
+						onclick={() => (scope = 'overall')}
+					>
+						Overall
+					</button>
+					<span class="text-[10px] text-rv-dim ml-1">
+						{scope === 'ship' ? 'up to submission date' : 'includes post-ship activity'}
+					</span>
+				</div>
+			{/if}
 			{#if loading}
 				<div class="flex items-center gap-3 mb-3">
 					<Skeleton class="h-20 w-20 rounded-full" />
@@ -197,7 +244,12 @@
 				{/if}
 
 				<div class="mt-4 text-[10px] text-rv-dim italic leading-snug">
-					Note: stats reflect current data, not data at submission time.<br>This data should be treated as an approximation, and there's no guarantee that non-AI hours are human. (ex. copy/pasted ChatGPT code).
+					{#if scope === 'ship'}
+						Bounded by the submission date, so it matches the tracked hours being approved.<br>
+					{:else}
+						Note: stats reflect current data, not data at submission time.<br>
+					{/if}
+					This data should be treated as an approximation, and there's no guarantee that non-AI hours are human. (ex. copy/pasted ChatGPT code).
 				</div>
 			{/if}
 		</div>

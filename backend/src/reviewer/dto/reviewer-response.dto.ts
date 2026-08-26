@@ -716,6 +716,25 @@ export class ProjectHourBreakdownPerProject {
   hours: number;
 }
 
+export class ProjectHourBreakdownShipWindow {
+  @ApiProperty()
+  totalHours: number;
+
+  @ApiProperty()
+  aiHours: number;
+
+  @ApiProperty()
+  nonAiHours: number;
+
+  @ApiProperty()
+  startDate: string;
+
+  // Exclusive end of the window — the exact submission instant, expressed
+  // in UTC-12 (Hackatime's parser wants numeric offsets, not `Z`).
+  @ApiProperty()
+  endDate: string;
+}
+
 export class ProjectHourBreakdownResponse {
   @ApiProperty()
   totalHours: number;
@@ -734,6 +753,13 @@ export class ProjectHourBreakdownResponse {
   // `HACKATIME_CUTOFF_DATE` fallback. End is implicitly "now".
   @ApiProperty()
   startDate: string;
+
+  // Same split bounded by the submission instant (cutoff → createdAt,
+  // exclusive end). null when the project has no submissions. This slice is
+  // the one whose AI share matches the frozen hackatimeHours figure — the
+  // all-time window keeps growing after ship and dilutes the ratio.
+  @ApiProperty({ type: ProjectHourBreakdownShipWindow, nullable: true })
+  ship: ProjectHourBreakdownShipWindow | null;
 }
 
 export class ManifestSubmissionResponse {
