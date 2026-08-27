@@ -354,6 +354,17 @@ export class SubmissionApprovalService {
     });
     if (!submission || submission.approvalStatus !== 'approved') return;
 
+    // This row is already mirrored in Airtable, where the justification cell may
+    // have been hand-edited. Pull that current value back into Horizons (audited)
+    // BEFORE this edit regenerates and overwrites it, so an Airtable-side edit is
+    // captured rather than silently lost. An Airtable read failure is swallowed
+    // (the forward PATCH below will fail the same way, leaving Airtable's value
+    // intact); a failure to *persist* a divergence we did read propagates and
+    // aborts the edit, so the human's text can't be lost between read and write.
+    if (submission.airtableRecId) {
+      await this.airtableService.reconcileJustificationFromAirtable(submission);
+    }
+
     // Rebuild the full justification if the reviewer edited it OR touched
     // anything the hours narrative reports on — the narrative quotes tracked,
     // AI and approved hours, so an hours-only edit would otherwise leave

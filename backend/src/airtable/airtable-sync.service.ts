@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AirtableService } from './airtable.service';
+import { PrismaService } from '../prisma.service';
 
 /**
  * Hourly sweep of the Users table. The per-event hooks in
@@ -12,12 +13,26 @@ import { AirtableService } from './airtable.service';
  * Also hosts the hourly Transactions sweep: live hooks mirror each
  * transaction on create/fulfill/refund, and syncAllTransactions backfills
  * any row whose airtableRecId is still null.
+ *
+ * And the justification reverse-sync: the justification cell in the Approved
+ * Projects table is edited by humans directly in Airtable. This cron makes the
+ * sync bidirectional — it pulls those edits back into Horizons so the two sides
+ * converge. (The forward-sync may later regenerate and overwrite on the next
+ * admin edit; that's expected last-writer-wins behaviour.)
  */
 @Injectable()
 export class AirtableSyncService implements OnModuleInit {
   private readonly logger = new Logger(AirtableSyncService.name);
 
-  constructor(private airtableService: AirtableService) {}
+  // A drifted row is only pulled once its Horizons row has been quiet for this
+  // long. Guards against reverting an in-flight/just-failed forward write
+  // (where the DB is legitimately ahead of Airtable) before it can retry.
+  private static readonly PULL_GRACE_MS = 10 * 60 * 1000;
+
+  constructor(
+    private airtableService: AirtableService,
+    private prisma: PrismaService,
+  ) {}
 
   onModuleInit() {
     // Fire-and-forget so startup isn't blocked by a full table sweep.
@@ -26,6 +41,9 @@ export class AirtableSyncService implements OnModuleInit {
     );
     this.runTransactionSync('startup').catch((err) =>
       this.logger.error('Startup Airtable transaction sync threw:', err),
+    );
+    this.runJustificationReverseSync('startup').catch((err) =>
+      this.logger.error('Startup Airtable justification reverse-sync threw:', err),
     );
   }
 
@@ -40,6 +58,14 @@ export class AirtableSyncService implements OnModuleInit {
   @Cron(CronExpression.EVERY_10_MINUTES)
   async handleTransactionSync() {
     await this.runTransactionSync('interval');
+  }
+
+  // Pull human edits to the justification cell back into Horizons. Reads the
+  // whole Approved Projects table (a handful of paged requests), so every 30
+  // minutes keeps Airtable authoritative without hammering the API.
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async handleJustificationReverseSync() {
+    await this.runJustificationReverseSync('interval');
   }
 
   private async runSync(trigger: 'startup' | 'hourly') {
@@ -63,6 +89,84 @@ export class AirtableSyncService implements OnModuleInit {
       );
     } catch (err) {
       this.logger.error(`${trigger} Airtable transaction sync threw:`, err);
+    }
+  }
+
+  /**
+   * Airtable → Horizons for the justification cell. Horizons always writes the
+   * DB and Airtable together, so a divergence between the two means the cell was
+   * edited directly in Airtable. When that happens we pull Airtable's text into
+   * Horizons so both sides converge, and record a system-actor audit entry.
+   */
+  private async runJustificationReverseSync(trigger: 'startup' | 'interval') {
+    this.logger.log(`Starting ${trigger} Airtable justification reverse-sync`);
+    let pulled = 0;
+    let checked = 0;
+    try {
+      const airtableJustifications =
+        await this.airtableService.fetchApprovedProjectJustifications();
+      if (airtableJustifications.size === 0) {
+        this.logger.log(
+          `${trigger} justification reverse-sync: no Airtable records to reconcile`,
+        );
+        return;
+      }
+
+      const submissions = await this.prisma.submission.findMany({
+        where: { approvalStatus: 'approved', airtableRecId: { not: null } },
+        select: {
+          submissionId: true,
+          projectId: true,
+          airtableRecId: true,
+          hoursJustification: true,
+          updatedAt: true,
+        },
+      });
+
+      const graceCutoff = Date.now() - AirtableSyncService.PULL_GRACE_MS;
+
+      for (const submission of submissions) {
+        const airtableValue = airtableJustifications.get(
+          submission.airtableRecId!,
+        );
+        // No matching Airtable record (deleted, or never created) — nothing to
+        // reconcile against.
+        if (airtableValue === undefined) continue;
+        checked++;
+
+        if (
+          AirtableService.normalizeJustification(airtableValue) ===
+          AirtableService.normalizeJustification(submission.hoursJustification)
+        ) {
+          continue;
+        }
+
+        // Row changed in Horizons very recently — could be an in-flight or
+        // just-failed forward write rather than an Airtable edit. Let it retry
+        // before we consider adopting Airtable's (possibly stale) value. The
+        // pre-edit reconcile handles the "admin is editing right now" case
+        // synchronously, so this window only defers passive drift.
+        if (submission.updatedAt.getTime() > graceCutoff) continue;
+
+        await this.airtableService.applyJustificationPull({
+          submissionId: submission.submissionId,
+          projectId: submission.projectId,
+          airtableRecId: submission.airtableRecId!,
+          from: submission.hoursJustification,
+          to: airtableValue,
+          trigger: 'cron',
+        });
+        pulled++;
+      }
+
+      this.logger.log(
+        `${trigger} Airtable justification reverse-sync complete: ${pulled} pulled, ${checked} checked`,
+      );
+    } catch (err) {
+      this.logger.error(
+        `${trigger} Airtable justification reverse-sync threw:`,
+        err,
+      );
     }
   }
 }
