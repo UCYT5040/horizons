@@ -17,6 +17,10 @@ export const AUDIT_ACTIONS = {
   // Superadmin-only out-of-band status flip on an already-finalized submission
   // (approved↔rejected). Bypasses the two-gate state machine entirely.
   superadminOverride: 'superadmin_override',
+  // The reverse-sync cron detected a human edit to the Airtable justification
+  // cell and pulled it back into Horizons (changes: { from, to, airtableRecId }).
+  // Recorded against SYSTEM_ACTOR_ID.
+  airtableJustificationPull: 'airtable_justification_pull',
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

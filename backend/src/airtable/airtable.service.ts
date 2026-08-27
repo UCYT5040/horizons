@@ -1,6 +1,10 @@
 import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { resolveAttachmentUrl } from './resolve-cdn-url';
+import {
+  AUDIT_ACTIONS,
+  SYSTEM_ACTOR_ID,
+} from '../submission-approval/audit-actions';
 
 @Injectable()
 export class AirtableService {
@@ -830,8 +834,7 @@ export class AirtableService {
           },
         ],
         'Optional - Override Hours Spent': data.project.approvedHours,
-        'Optional - Override Hours Spent Justification':
-          data.project.hoursJustification,
+        [AirtableService.JUSTIFICATION_FIELD]: data.project.hoursJustification,
         'Approved At': new Date().toISOString().split('T')[0],
       };
 
@@ -983,8 +986,7 @@ export class AirtableService {
       }
 
       if (data.hoursJustification !== undefined) {
-        fields['Optional - Override Hours Spent Justification'] =
-          data.hoursJustification;
+        fields[AirtableService.JUSTIFICATION_FIELD] = data.hoursJustification;
       }
 
       if (data.projectType !== undefined) {
@@ -1037,6 +1039,218 @@ export class AirtableService {
         HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
+  }
+
+  // Field name for the justification cell, shared by the write and reverse-read
+  // paths so they can't drift.
+  static readonly JUSTIFICATION_FIELD =
+    'Optional - Override Hours Spent Justification';
+
+  /**
+   * Read every Approved Projects record's justification cell, keyed by record
+   * id. Used by the reverse-sync cron to detect human edits made directly in
+   * Airtable (Horizons writes DB + Airtable together, so a divergence means the
+   * cell was edited in Airtable). Projects only the one field and pages at 100
+   * rows/request to stay well under the 5 req/sec limit.
+   *
+   * Records whose cell is empty are still included (value ''), so the caller can
+   * distinguish "cleared in Airtable" from "record missing".
+   */
+  async fetchApprovedProjectJustifications(): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+    if (
+      !this.AIRTABLE_API_KEY ||
+      !this.YSWS_BASE_ID ||
+      !this.APPROVED_PROJECTS_TABLE_ID
+    ) {
+      return result;
+    }
+
+    let offset: string | undefined;
+    do {
+      const params = new URLSearchParams();
+      params.append('fields[]', AirtableService.JUSTIFICATION_FIELD);
+      params.set('pageSize', '100');
+      if (offset) params.set('offset', offset);
+
+      const response = await fetch(
+        `https://api.airtable.com/v0/${this.YSWS_BASE_ID}/${this.APPROVED_PROJECTS_TABLE_ID}?${params.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${this.AIRTABLE_API_KEY}` },
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        console.error(
+          `Airtable justification fetch failed (${response.status}):`,
+          errorText,
+        );
+        throw new HttpException(
+          'Failed to read Approved Projects justifications',
+          response.status || HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const page = (await response.json()) as {
+        records: { id: string; fields: Record<string, unknown> }[];
+        offset?: string;
+      };
+      for (const record of page.records) {
+        const value = record.fields[AirtableService.JUSTIFICATION_FIELD];
+        result.set(record.id, typeof value === 'string' ? value : '');
+      }
+      offset = page.offset;
+
+      // Pace pages: 5 req/sec base limit. 250ms keeps us at ~4 req/sec.
+      if (offset) await new Promise((resolve) => setTimeout(resolve, 250));
+    } while (offset);
+
+    return result;
+  }
+
+  /**
+   * Read a single Approved Projects record's justification cell. Returns null
+   * when Airtable isn't configured or the record is gone (404). Used by the
+   * pre-edit reconcile so a Horizons edit reads Airtable's current value before
+   * it regenerates over it.
+   */
+  async fetchApprovedProjectJustification(
+    airtableRecId: string,
+  ): Promise<string | null> {
+    if (
+      !this.AIRTABLE_API_KEY ||
+      !this.YSWS_BASE_ID ||
+      !this.APPROVED_PROJECTS_TABLE_ID
+    ) {
+      return null;
+    }
+
+    const response = await fetch(
+      `https://api.airtable.com/v0/${this.YSWS_BASE_ID}/${this.APPROVED_PROJECTS_TABLE_ID}/${airtableRecId}`,
+      { headers: { Authorization: `Bearer ${this.AIRTABLE_API_KEY}` } },
+    );
+
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => '');
+      console.error(
+        `Airtable single justification fetch failed (${response.status}):`,
+        errorText,
+      );
+      throw new HttpException(
+        'Failed to read Approved Project justification',
+        response.status || HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const record = (await response.json()) as {
+      fields?: Record<string, unknown>;
+    };
+    const value = record.fields?.[AirtableService.JUSTIFICATION_FIELD];
+    return typeof value === 'string' ? value : '';
+  }
+
+  /**
+   * GET the current Airtable justification for a submission and, if it diverges
+   * from what Horizons holds, pull it in (writing the submission + project mirror
+   * and logging the pull). Called at the start of a Horizons edit so an
+   * Airtable-side edit is captured and audited rather than silently clobbered by
+   * the regenerate-and-overwrite that the edit is about to do.
+   *
+   * Best-effort: a read failure is logged and swallowed so it can't block the
+   * edit the caller actually intends to make.
+   */
+  async reconcileJustificationFromAirtable(submission: {
+    submissionId: number;
+    projectId: number;
+    airtableRecId: string | null;
+    hoursJustification: string | null;
+  }): Promise<void> {
+    if (!submission.airtableRecId) return;
+
+    let airtableValue: string | null;
+    try {
+      airtableValue = await this.fetchApprovedProjectJustification(
+        submission.airtableRecId,
+      );
+    } catch (err) {
+      console.error('Pre-edit Airtable justification reconcile read failed:', err);
+      return;
+    }
+    if (airtableValue === null) return;
+    if (
+      AirtableService.normalizeJustification(airtableValue) ===
+      AirtableService.normalizeJustification(submission.hoursJustification)
+    ) {
+      return;
+    }
+
+    await this.applyJustificationPull({
+      submissionId: submission.submissionId,
+      projectId: submission.projectId,
+      airtableRecId: submission.airtableRecId,
+      from: submission.hoursJustification,
+      to: airtableValue,
+      trigger: 'pre-edit',
+    });
+  }
+
+  /**
+   * Adopt an Airtable-sourced justification for one submission: write it to the
+   * submission (and the project mirror when this is the project's latest approved
+   * submission) and log the pull under the system actor. Done in a transaction so
+   * the DB write and the audit entry can't diverge. Shared by the reverse-sync
+   * cron and the pre-edit reconcile.
+   */
+  async applyJustificationPull(params: {
+    submissionId: number;
+    projectId: number;
+    airtableRecId: string;
+    from: string | null;
+    to: string;
+    trigger: 'cron' | 'pre-edit';
+  }): Promise<void> {
+    const latestApproved = await this.prisma.submission.findFirst({
+      where: { projectId: params.projectId, approvalStatus: 'approved' },
+      orderBy: { createdAt: 'desc' },
+      select: { submissionId: true },
+    });
+    const isProjectMirror =
+      latestApproved?.submissionId === params.submissionId;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.submission.update({
+        where: { submissionId: params.submissionId },
+        data: { hoursJustification: params.to },
+      });
+      if (isProjectMirror) {
+        await tx.project.update({
+          where: { projectId: params.projectId },
+          data: { hoursJustification: params.to },
+        });
+      }
+      await tx.submissionAuditLog.create({
+        data: {
+          submissionId: params.submissionId,
+          adminId: SYSTEM_ACTOR_ID,
+          action: AUDIT_ACTIONS.airtableJustificationPull,
+          changes: {
+            from: params.from,
+            to: params.to,
+            airtableRecId: params.airtableRecId,
+            projectMirrorUpdated: isProjectMirror,
+            trigger: params.trigger,
+          } as any,
+        },
+      });
+    });
+  }
+
+  // Airtable normalizes line endings and can add/strip trailing whitespace on
+  // save, so compare justifications on a canonical form to avoid spurious pulls.
+  static normalizeJustification(value: string | null): string {
+    return (value ?? '').replace(/\r\n/g, '\n').trim();
   }
 
   /**
