@@ -88,6 +88,7 @@ Tracks each approved submission as a separate row.
 | Project Type | `project.projectType` | Raw enum value (e.g. `web_playable`); written with `typecast` so single-select options auto-create |
 | Reviewed By | `submission.reviewedBy` | Reviewer's "First Last" name; `User <id>` if the account no longer exists |
 | Event Submitted To | `user.pinnedEvent.event.slug` | Slug of the submitter's pinned event (e.g. `horizons-sf`); blank if none pinned. Set on create only |
+| Horizons Admin Project Link | `${FRONTEND_URL}/admin/projects/${projectId}` | URL field deep-linking the row to the project in the Horizons admin panel; written on create and edit |
 
 ### Trigger Points
 

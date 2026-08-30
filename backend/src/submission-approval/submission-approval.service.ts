@@ -1089,6 +1089,7 @@ export class SubmissionApprovalService {
           projectType: project.projectType,
           reviewedByName: await this.resolveReviewerName(submission.reviewedBy),
           eventSubmittedTo: project.user.pinnedEvent?.event?.slug ?? undefined,
+          adminProjectLink: `${adminBaseUrl()}/admin/projects/${submission.projectId}`,
         },
       };
 
@@ -1151,6 +1152,7 @@ export class SubmissionApprovalService {
           hoursJustification: dto.hoursJustification,
           projectType: submission.project.projectType,
           reviewedByName: await this.resolveReviewerName(submission.reviewedBy),
+          adminProjectLink: `${adminBaseUrl()}/admin/projects/${submission.projectId}`,
         },
       );
     } catch (error) {

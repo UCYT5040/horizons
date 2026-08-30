@@ -722,6 +722,7 @@ export class AirtableService {
       projectType?: string;
       reviewedByName?: string;
       eventSubmittedTo?: string;
+      adminProjectLink?: string;
     };
   }): Promise<{ recordId: string }> {
     if (!this.AIRTABLE_API_KEY) {
@@ -858,6 +859,10 @@ export class AirtableService {
         fields['Event Submitted To'] = data.project.eventSubmittedTo;
       }
 
+      if (data.project.adminProjectLink) {
+        fields[AirtableService.ADMIN_LINK_FIELD] = data.project.adminProjectLink;
+      }
+
       if (!this.AIRTABLE_API_KEY) {
         throw new HttpException(
           'Airtable API key not configured for Unified YSWS',
@@ -920,6 +925,7 @@ export class AirtableService {
       hoursJustification?: string;
       projectType?: string;
       reviewedByName?: string;
+      adminProjectLink?: string;
     },
   ): Promise<void> {
     if (!this.AIRTABLE_API_KEY) {
@@ -997,6 +1003,10 @@ export class AirtableService {
         fields['Reviewed By'] = data.reviewedByName;
       }
 
+      if (data.adminProjectLink !== undefined) {
+        fields[AirtableService.ADMIN_LINK_FIELD] = data.adminProjectLink;
+      }
+
       // Only make request if there are fields to update
       if (Object.keys(fields).length === 0) {
         return;
@@ -1045,6 +1055,10 @@ export class AirtableService {
   // paths so they can't drift.
   static readonly JUSTIFICATION_FIELD =
     'Optional - Override Hours Spent Justification';
+
+  // URL field linking the Airtable row back to the project in the Horizons admin
+  // panel (same URL as the "Project:" line in the justification footer).
+  static readonly ADMIN_LINK_FIELD = 'Horizons Admin Project Link';
 
   /**
    * Read every Approved Projects record's justification cell, keyed by record
