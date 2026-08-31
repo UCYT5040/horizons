@@ -3667,6 +3667,34 @@ export class AdminService {
       ...(filters.limit ? { take: filters.limit } : {}),
     });
 
+    // Current spendable balance per user appearing in the ledger, so the UI
+    // can flag users who have gone negative (e.g. hours revoked after they
+    // spent them). Mirrors BalanceService.getUserBalance, batched into two
+    // aggregates instead of one pair per user.
+    const userIds = [...new Set(entries.map((e) => e.userId))];
+    const [earnedRows, spentRows] = await Promise.all([
+      this.prisma.project.groupBy({
+        by: ['userId'],
+        where: { userId: { in: userIds }, deletedAt: null },
+        _sum: { approvedHours: true },
+      }),
+      this.prisma.transaction.groupBy({
+        by: ['userId'],
+        where: { userId: { in: userIds }, refundedAt: null },
+        _sum: { cost: true },
+      }),
+    ]);
+    const earnedById = new Map(
+      earnedRows.map((r) => [r.userId, r._sum.approvedHours ?? 0]),
+    );
+    const spentById = new Map(
+      spentRows.map((r) => [r.userId, r._sum.cost ?? 0]),
+    );
+    const balanceOf = (userId: number) =>
+      Math.round(
+        ((earnedById.get(userId) ?? 0) - (spentById.get(userId) ?? 0)) * 10,
+      ) / 10;
+
     const allTotals = await this.prisma.transaction.groupBy({
       by: ['kind'],
       _count: { _all: true },
@@ -3691,7 +3719,13 @@ export class AdminService {
     }
     summary.totalSpent = Math.round(summary.totalSpent * 10) / 10;
 
-    return { entries, summary };
+    return {
+      entries: entries.map((e) => ({
+        ...e,
+        user: { ...e.user, balance: balanceOf(e.userId) },
+      })),
+      summary,
+    };
   }
 
   async getTransactionDetail(transactionId: number) {
@@ -3737,7 +3771,29 @@ export class AdminService {
       throw new NotFoundException('Transaction not found');
     }
 
-    return txn;
+    // Current balance (so the UI can flag negative users) and the user's full
+    // admin-adjustment history, so the transaction view shows how their
+    // balance has been manually changed over time.
+    const [{ balance }, adjustments] = await Promise.all([
+      this.balanceService.getUserBalance(txn.userId),
+      this.prisma.transaction.findMany({
+        where: { userId: txn.userId, kind: 'AdminAdjustment' },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          transactionId: true,
+          cost: true,
+          itemDescription: true,
+          createdAt: true,
+          refundedAt: true,
+        },
+      }),
+    ]);
+
+    return {
+      ...txn,
+      user: { ...txn.user, balance },
+      adjustments,
+    };
   }
 
   // CSV export of the ledger with full user identity (address + phone) for

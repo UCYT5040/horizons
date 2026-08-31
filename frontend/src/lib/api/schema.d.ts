@@ -3529,6 +3529,8 @@ export interface components {
             lastName: string;
             slackUserId: string | null;
             slackUsername: string | null;
+            /** @description Current spendable balance (approved hours minus unrefunded spend). Negative means the user spent hours that were later revoked. */
+            balance: number;
         };
         LedgerEntryItemSummary: {
             itemId: number;
@@ -3583,6 +3585,8 @@ export interface components {
             state: string | null;
             zipCode: string | null;
             country: string | null;
+            /** @description Current spendable balance (approved hours minus unrefunded spend). Negative means the user spent hours that were later revoked. */
+            balance: number;
         };
         AdminTransactionDetailItemResponse: {
             itemId: number;
@@ -3603,6 +3607,16 @@ export interface components {
             title: string | null;
             location: string | null;
         };
+        AdminBalanceAdjustmentResponse: {
+            transactionId: number;
+            /** @description Ledger cost: negative = hours awarded, positive = deducted. */
+            cost: number;
+            itemDescription: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            refundedAt: string | null;
+        };
         AdminTransactionDetailResponse: {
             transactionId: number;
             /** @enum {string} */
@@ -3621,6 +3635,8 @@ export interface components {
             item: components["schemas"]["AdminTransactionDetailItemResponse"] | null;
             variant: components["schemas"]["AdminTransactionDetailVariantResponse"] | null;
             event: components["schemas"]["AdminTransactionDetailEventResponse"] | null;
+            /** @description This user's full admin balance-adjustment history, newest first. */
+            adjustments: components["schemas"]["AdminBalanceAdjustmentResponse"][];
         };
         ReviewerLeaderboardEntry: {
             reviewerId: string;
@@ -7249,6 +7265,7 @@ export interface operations {
     ReviewerController_getProjectHourBreakdown: {
         parameters: {
             query?: {
+                /** @description Bound the ship slice to this submission; defaults to latest */
                 submissionId?: number;
             };
             header?: never;

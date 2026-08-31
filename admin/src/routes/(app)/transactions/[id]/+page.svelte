@@ -129,7 +129,21 @@
 				actionError = errMessage(err, 'Refund failed');
 				return;
 			}
-			txn = { ...txn, refundedAt: new Date().toISOString() };
+			// Refunding removes this row from the user's spend, so their balance
+			// moves by +cost; keep the flag and adjustment history in sync.
+			const refundedAt = new Date().toISOString();
+			const refundedId = txn.transactionId;
+			txn = {
+				...txn,
+				refundedAt,
+				user: {
+					...txn.user,
+					balance: Math.round((txn.user.balance + txn.cost) * 10) / 10,
+				},
+				adjustments: txn.adjustments.map((a) =>
+					a.transactionId === refundedId ? { ...a, refundedAt } : a,
+				),
+			};
 		} catch (err) {
 			actionError = errMessage(err, 'Refund failed');
 		} finally {
@@ -162,6 +176,15 @@
 				<div class="flex items-center justify-between gap-3 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-700 dark:bg-red-900/20 dark:text-red-200">
 					<span>{actionError}</span>
 					<button class="text-xs underline" onclick={() => (actionError = null)}>Dismiss</button>
+				</div>
+			{/if}
+
+			{#if txn.user.balance < 0}
+				<div class="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-700 dark:bg-red-900/20 dark:text-red-200">
+					<span class="font-semibold">⚠ Negative balance:</span>
+					this user's balance is <span class="font-mono font-semibold">{txn.user.balance}h</span> —
+					they have spent more hours than they currently have approved (e.g. hours were revoked after spending).
+					Check the adjustment history below before acting on this transaction.
 				</div>
 			{/if}
 
@@ -239,6 +262,14 @@
 							<span class="ml-1 text-xs font-normal text-ds-text-placeholder">#{txn.user.userId}</span>
 						</p>
 						<p class="text-ds-text-secondary">{txn.user.email}</p>
+						<p class="text-ds-text-secondary">
+							Balance:
+							<span
+								class="font-mono {txn.user.balance < 0
+									? 'font-semibold text-red-700 dark:text-red-300'
+									: 'text-ds-text'}">{txn.user.balance}h</span
+							>
+						</p>
 						<p class="text-ds-text-secondary">
 							Slack:
 							{#if txn.user.slackUserId}
@@ -324,6 +355,59 @@
 						</p>
 					{/if}
 				</div>
+			</div>
+
+			<!-- Balance adjustment history -->
+			<div class="space-y-3 rounded-lg border border-ds-border bg-ds-surface p-5 shadow-[var(--color-ds-shadow)]">
+				<h2 class="text-sm font-semibold uppercase tracking-wide text-ds-text-secondary">
+					Balance adjustment history
+				</h2>
+				{#if txn.adjustments.length === 0}
+					<p class="text-sm text-ds-text-placeholder">No admin balance adjustments for this user.</p>
+				{:else}
+					<div class="overflow-x-auto">
+						<table class="w-full text-sm">
+							<thead>
+								<tr class="border-b border-ds-border text-left text-[11px] uppercase tracking-wide text-ds-text-secondary">
+									<th class="px-3 py-2 font-semibold">ID</th>
+									<th class="px-3 py-2 text-right font-semibold">Hours</th>
+									<th class="px-3 py-2 font-semibold">Reason</th>
+									<th class="px-3 py-2 font-semibold">Date</th>
+									<th class="px-3 py-2 font-semibold">Status</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each txn.adjustments as adj (adj.transactionId)}
+									<tr class="border-b border-ds-border/60 {adj.transactionId === txn.transactionId ? 'bg-ds-surface2/50' : ''}">
+										<td class="px-3 py-2 font-mono text-xs text-ds-text-secondary">
+											{#if adj.transactionId === txn.transactionId}
+												<span title="This transaction">#{adj.transactionId}</span>
+											{:else}
+												<a
+													href="{base}/transactions/{adj.transactionId}"
+													class="hover:text-ds-text hover:underline"
+													title="Open adjustment detail"
+												>#{adj.transactionId}</a>
+											{/if}
+										</td>
+										<td class="px-3 py-2 text-right font-mono {adj.cost < 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}">
+											{adj.cost < 0 ? `+${-adj.cost}` : `\u2212${adj.cost}`}h
+										</td>
+										<td class="px-3 py-2 text-ds-text-secondary">{adj.itemDescription}</td>
+										<td class="px-3 py-2 text-xs text-ds-text-secondary">{formatDateTime(adj.createdAt)}</td>
+										<td class="px-3 py-2 text-xs">
+											{#if adj.refundedAt}
+												<span class="text-red-700 dark:text-red-300" title="Reversed {formatDateTime(adj.refundedAt)}">Reversed</span>
+											{:else}
+												<span class="text-ds-text-secondary">Active</span>
+											{/if}
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>
