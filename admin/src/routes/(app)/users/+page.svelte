@@ -511,11 +511,16 @@
                                     Approved: {formatHours(user.totalApprovedHours)}h
                                 </span>
                                 <span
-                                    class="rounded-full border border-ds-border px-3 py-1"
-                                    title="Spendable balance = approved hours earned minus unrefunded ledger spend"
+                                    class="rounded-full border px-3 py-1 {user.balance < 0
+                                        ? 'border-red-400 bg-red-50 font-medium text-red-700 dark:border-red-700/60 dark:bg-red-900/30 dark:text-red-300'
+                                        : 'border-ds-border'}"
+                                    title={user.balance < 0
+                                        ? 'Negative balance — this user spent more hours than they currently have approved (e.g. hours were revoked after spending)'
+                                        : 'Spendable balance = approved hours earned minus unrefunded ledger spend'}
                                 >
+                                    {#if user.balance < 0}⚠{/if}
                                     Balance: {formatHours(user.balance)}h
-                                    <span class="text-ds-text-placeholder">· spent {formatHours(user.totalSpent)}</span>
+                                    <span class={user.balance < 0 ? 'opacity-70' : 'text-ds-text-placeholder'}>· spent {formatHours(user.totalSpent)}</span>
                                 </span>
                                 <span
                                     class="rounded-full border border-ds-border px-3 py-1"

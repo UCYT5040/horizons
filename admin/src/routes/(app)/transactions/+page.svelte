@@ -24,6 +24,7 @@
 			firstName: string;
 			lastName: string;
 			slackUserId: string | null;
+			balance: number;
 		};
 		item: { itemId: number; name: string } | null;
 		event: { eventId: number; slug: string; title: string } | null;
@@ -106,6 +107,25 @@
 		{ label: 'Flat', value: 'flat' },
 		{ label: 'By User', value: 'by-user' },
 	];
+
+	// Refunding removes the row from the user's spend, so their balance moves
+	// by +cost. Applied to every loaded row for that user so the negative-
+	// balance flag stays in sync without a reload.
+	function applyRefundLocally(t: LedgerEntry, refundedAt: string) {
+		entries = entries.map((row) => {
+			const updated =
+				row.user.userId === t.user.userId
+					? {
+							...row,
+							user: {
+								...row.user,
+								balance: Math.round((row.user.balance + t.cost) * 10) / 10,
+							},
+						}
+					: row;
+			return updated.transactionId === t.transactionId ? { ...updated, refundedAt } : updated;
+		});
+	}
 
 	async function loadLedger() {
 		loading = true;
@@ -373,10 +393,7 @@
 						: 'Refund failed';
 				return;
 			}
-			const refundedAt = new Date().toISOString();
-			entries = entries.map((row) =>
-				row.transactionId === e.transactionId ? { ...row, refundedAt } : row,
-			);
+			applyRefundLocally(e, new Date().toISOString());
 		} catch (err) {
 			actionError = err instanceof Error ? err.message : 'Refund failed';
 		} finally {
@@ -487,9 +504,12 @@
 					continue;
 				}
 				const now = new Date().toISOString();
+				if (action === 'refund') {
+					applyRefundLocally(e, now);
+					continue;
+				}
 				entries = entries.map((row) => {
 					if (row.transactionId !== e.transactionId) return row;
-					if (action === 'refund') return { ...row, refundedAt: now };
 					if (action === 'fulfill') return { ...row, isFulfilled: true, fulfilledAt: now };
 					return { ...row, isFulfilled: false, fulfilledAt: null };
 				});
@@ -673,6 +693,15 @@
 			</div>
 		{/if}
 
+		{#snippet negativeBalanceBadge(balance: number)}
+			<span
+				class="inline-flex items-center gap-1 rounded-full border border-red-400 bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700 dark:border-red-700/60 dark:bg-red-900/30 dark:text-red-300"
+				title="Negative balance — this user spent more hours than they currently have approved (e.g. hours were revoked after spending)"
+			>
+				⚠ {balance}h balance
+			</span>
+		{/snippet}
+
 		{#snippet ledgerRow(e: LedgerEntry, showUser: boolean)}
 			<tr class="border-b border-ds-border/60 hover:bg-ds-surface2/30">
 				<td class="px-3 py-2 font-mono text-xs text-ds-text-secondary">
@@ -689,7 +718,12 @@
 				</td>
 				{#if showUser}
 					<td class="px-3 py-2 text-ds-text">
-						<div class="font-medium">{e.user.firstName} {e.user.lastName}</div>
+						<div class="flex items-center gap-1.5">
+							<span class="font-medium">{e.user.firstName} {e.user.lastName}</span>
+							{#if e.user.balance < 0}
+								{@render negativeBalanceBadge(e.user.balance)}
+							{/if}
+						</div>
 						<div class="text-xs text-ds-text-secondary">{e.user.email}</div>
 					</td>
 				{/if}
@@ -796,6 +830,9 @@
 							<div>
 								<div class="flex flex-wrap items-center gap-2">
 									<span class="font-semibold text-ds-text">{group.user.firstName} {group.user.lastName}</span>
+									{#if group.user.balance < 0}
+										{@render negativeBalanceBadge(group.user.balance)}
+									{/if}
 									{#each ticketsByUser.get(group.user.userId) ?? [] as ticket (ticket.eventId)}
 										<span
 											class="inline-flex items-center gap-1 rounded-full border border-emerald-300/50 bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800 dark:border-emerald-700/50 dark:bg-emerald-900/40 dark:text-emerald-200"
@@ -808,6 +845,12 @@
 								<div class="text-xs text-ds-text-secondary">{group.user.email}</div>
 							</div>
 							<div class="flex gap-5 text-right text-xs">
+								<div>
+									<p class="text-ds-text-secondary">Balance</p>
+									<p class="text-base font-semibold {group.user.balance < 0 ? 'text-red-700 dark:text-red-300' : 'text-ds-text'}">
+										{group.user.balance}h
+									</p>
+								</div>
 								<div>
 									<p class="text-ds-text-secondary">Transactions</p>
 									<p class="text-base font-semibold text-ds-text">{group.entries.length}</p>

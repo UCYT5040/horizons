@@ -604,6 +604,31 @@ export class AdminTransactionDetailUserResponse {
 
   @ApiProperty({ type: String, nullable: true })
   country: string | null;
+
+  @ApiProperty({
+    description:
+      'Current spendable balance (approved hours minus unrefunded spend). Negative means the user spent hours that were later revoked.',
+  })
+  balance: number;
+}
+
+export class AdminBalanceAdjustmentResponse {
+  @ApiProperty()
+  transactionId: number;
+
+  @ApiProperty({
+    description: 'Ledger cost: negative = hours awarded, positive = deducted.',
+  })
+  cost: number;
+
+  @ApiProperty()
+  itemDescription: string;
+
+  @ApiProperty({ format: 'date-time' })
+  createdAt: Date;
+
+  @ApiProperty({ type: String, nullable: true, format: 'date-time' })
+  refundedAt: Date | null;
 }
 
 export class AdminTransactionDetailItemResponse {
@@ -690,6 +715,13 @@ export class AdminTransactionDetailResponse {
 
   @ApiProperty({ type: AdminTransactionDetailEventResponse, nullable: true })
   event: AdminTransactionDetailEventResponse | null;
+
+  @ApiProperty({
+    type: [AdminBalanceAdjustmentResponse],
+    description:
+      "This user's full admin balance-adjustment history, newest first.",
+  })
+  adjustments: AdminBalanceAdjustmentResponse[];
 }
 
 export class AdminUserFlagResponse {
@@ -1921,6 +1953,12 @@ export class LedgerEntryUserSummary {
 
   @ApiProperty({ type: String, nullable: true })
   slackUsername: string | null;
+
+  @ApiProperty({
+    description:
+      'Current spendable balance (approved hours minus unrefunded spend). Negative means the user spent hours that were later revoked.',
+  })
+  balance: number;
 }
 
 export class LedgerEntryItemSummary {

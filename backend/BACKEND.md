@@ -184,6 +184,11 @@ Full administrative operations. Accessible to `admin` role only.
 | PUT | `/users/:id/bypass-idv` | Admin | Toggle `bypassIdv` flag (skips the IDV check on submission) |
 | PUT | `/users/:id/ban` | Admin | Set/clear `banned` (+ optional `reason`). Banning deletes the user's active sessions; the `AuthGuard` and login callback reject banned users |
 | PUT | `/users/:id/slack` | Admin | Manually set `slackUserId` |
+| **Transactions** |||
+| GET | `/transactions` | Admin | Unified ledger of all transactions (`kind`, `userId`, `fulfilled`, `refunded`, `limit` filters) + per-kind summary. Each entry's user carries `balance` (current spendable balance via grouped aggregates matching `BalanceService`) so the UI can flag users who have gone negative |
+| GET | `/transactions/export` | Admin | CSV export of the ledger (same filters + `q` search), enriched with address/phone for fulfilment |
+| GET | `/transactions/:id` | Admin | Full transaction detail: buyer identity (incl. address/phone and current `balance`), item/variant/event, plus `adjustments` — the user's full `AdminAdjustment` history (hours, reason, reversed state), newest first |
+| POST | `/users/:id/hours-adjustment` | Superadmin | Create an `AdminAdjustment` transaction crediting/deducting hours (requires `reason`) |
 | **Reviewer payouts** |||
 | GET | `/reviewer-payouts` | Admin | Per-reviewer payout summary: review counts split at the July 13 2026 rate cutoff (00:00 ET), unpaid counts, whole-block owed hours under the reviewer's current rate flags, carryover, total paid, flags |
 | GET | `/reviewer-payouts/:userId/history` | Admin | Past payouts for a reviewer (hours, counted reviews, rate applied, `refunded` from the backing transaction) |
