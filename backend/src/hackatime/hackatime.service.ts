@@ -658,33 +658,56 @@ export class HackatimeService {
       };
     }
 
-    const [totalSeconds, aiSeconds, perProjectDurations, shipTotalSeconds, shipAiSeconds] =
-      await Promise.all([
-        this.fetchBreakdownSeconds(account, names, token, cutoffDate),
-        this.fetchBreakdownSeconds(
-          account,
-          names,
-          token,
-          cutoffDate,
-          this.AI_BREAKDOWN_CATEGORIES,
-        ),
-        token
-          ? this.fetchHackatimePerProjectDurations(account, names, token, cutoffDate)
-          : Promise.resolve(new Map<string, number>()),
-        shipEndDate
-          ? this.fetchBreakdownSeconds(account, names, token, cutoffDate, undefined, shipEndDate)
-          : Promise.resolve(0),
-        shipEndDate
-          ? this.fetchBreakdownSeconds(
-              account,
-              names,
-              token,
-              cutoffDate,
-              this.AI_BREAKDOWN_CATEGORIES,
-              shipEndDate,
-            )
-          : Promise.resolve(0),
-      ]);
+    let totalSeconds: number;
+    let aiSeconds: number;
+    let perProjectDurations: Map<string, number>;
+    let shipTotalSeconds: number;
+    let shipAiSeconds: number;
+    try {
+      [totalSeconds, aiSeconds, perProjectDurations, shipTotalSeconds, shipAiSeconds] =
+        await Promise.all([
+          this.fetchBreakdownSeconds(account, names, token, cutoffDate),
+          this.fetchBreakdownSeconds(
+            account,
+            names,
+            token,
+            cutoffDate,
+            this.AI_BREAKDOWN_CATEGORIES,
+          ),
+          token
+            ? this.fetchHackatimePerProjectDurations(account, names, token, cutoffDate)
+            : Promise.resolve(new Map<string, number>()),
+          shipEndDate
+            ? this.fetchBreakdownSeconds(account, names, token, cutoffDate, undefined, shipEndDate)
+            : Promise.resolve(0),
+          shipEndDate
+            ? this.fetchBreakdownSeconds(
+                account,
+                names,
+                token,
+                cutoffDate,
+                this.AI_BREAKDOWN_CATEGORIES,
+                shipEndDate,
+              )
+            : Promise.resolve(0),
+        ]);
+    } catch (error) {
+      // An upstream Hackatime auth rejection (e.g. an expired/invalid
+      // HACKATIME_API_KEY) throws UnauthorizedException in fetchBreakdownSeconds.
+      // Left unhandled it becomes a 401 on the reviewer hour-breakdown endpoint,
+      // which the admin app's global 401 handler reads as a dead session and
+      // bounces to /login — which bounces straight back (the session is fine),
+      // producing an infinite review-page refresh loop. Degrade to an empty
+      // breakdown instead; the panel simply shows no hours.
+      console.error(
+        `Hour breakdown failed for project ${projectId}; returning empty breakdown:`,
+        error,
+      );
+      return {
+        ...empty,
+        perProject: names.map((name) => ({ name, hours: 0 })),
+      };
+    }
 
     const round1 = (n: number) => Math.round(n * 10) / 10;
     const round2 = (n: number) => Math.round(n * 100) / 100;
