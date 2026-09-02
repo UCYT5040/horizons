@@ -175,6 +175,21 @@
         }
     }
 
+    async function toggleTotalSubmissionsFrozen() {
+        if (!globalSettings) return;
+        globalSettingsLoading = true;
+        try {
+            const { data, error } = await api.PUT('/api/admin/settings/total-submissions-frozen', {
+                body: { totalSubmissionsFrozen: !globalSettings.totalSubmissionsFrozen },
+            });
+            if (!error && data) globalSettings = data;
+        } catch (err) {
+            console.error('Failed to toggle total submissions frozen:', err);
+        } finally {
+            globalSettingsLoading = false;
+        }
+    }
+
     async function loadManifestSummary() {
         manifestSummaryLoading = true;
         try {
@@ -537,19 +552,44 @@
                             {:else}
                                 <Play size={16} />
                             {/if}
-                            {globalSettings.submissionsFrozen ? 'Submissions Frozen' : 'Freeze All Submissions'}
+                            {globalSettings.submissionsFrozen ? 'Submissions Frozen' : 'Freeze Submissions'}
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            class={globalSettings.totalSubmissionsFrozen
+                                ? 'bg-red-600/20 border-red-500 text-red-700 dark:text-red-300 hover:bg-red-600/30 flex items-center gap-2'
+                                : 'flex items-center gap-2'}
+                            onclick={toggleTotalSubmissionsFrozen}
+                            disabled={globalSettingsLoading}
+                        >
+                            {#if globalSettingsLoading}
+                                <LoaderCircle size={16} class="animate-spin" />
+                            {:else if globalSettings.totalSubmissionsFrozen}
+                                <Snowflake size={16} />
+                            {:else}
+                                <Play size={16} />
+                            {/if}
+                            {globalSettings.totalSubmissionsFrozen ? 'Total Freeze Active' : 'Freeze All Submissions'}
                         </Button>
                     {/if}
                     <Button variant="default" onclick={() => loadProjects()}>Refresh</Button>
                 </div>
             </div>
 
-            {#if globalSettings?.submissionsFrozen}
+            {#if globalSettings?.totalSubmissionsFrozen}
+                <div class="rounded-xl border border-red-500 bg-red-600/10 p-4 flex items-center gap-3">
+                    <Snowflake size={24} class="text-red-700 dark:text-red-300" />
+                    <div>
+                        <p class="font-semibold text-red-700 dark:text-red-300">Total submission freeze is active</p>
+                        <p class="text-sm text-red-700 dark:text-red-300">No user can submit or resubmit — including whitelisted users.</p>
+                    </div>
+                </div>
+            {:else if globalSettings?.submissionsFrozen}
                 <div class="rounded-xl border border-blue-500 bg-blue-600/10 p-4 flex items-center gap-3">
                     <Snowflake size={24} class="text-blue-700 dark:text-blue-300" />
                     <div>
                         <p class="font-semibold text-blue-700 dark:text-blue-300">Submissions are currently frozen</p>
-                        <p class="text-sm text-blue-700 dark:text-blue-300">Users cannot submit or resubmit projects until unfrozen.</p>
+                        <p class="text-sm text-blue-700 dark:text-blue-300">Users cannot submit or resubmit projects until unfrozen. Whitelisted users can still submit.</p>
                     </div>
                 </div>
             {/if}

@@ -1206,6 +1206,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/settings/total-submissions-frozen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["AdminController_toggleTotalSubmissionsFrozen"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/settings/submission-whitelist": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["AdminController_getSubmissionWhitelist"];
+        put?: never;
+        post: operations["AdminController_addToSubmissionWhitelist"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/settings/submission-whitelist/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["AdminController_removeFromSubmissionWhitelist"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users/search": {
         parameters: {
             query?: never;
@@ -3734,9 +3782,32 @@ export interface components {
             /** Format: date-time */
             submissionsFrozenAt: string | null;
             submissionsFrozenBy: string | null;
+            totalSubmissionsFrozen: boolean;
+            /** Format: date-time */
+            totalSubmissionsFrozenAt: string | null;
+            totalSubmissionsFrozenBy: string | null;
+            /** @description User IDs allowed to submit while submissions are frozen. */
+            submissionWhitelist: number[];
+        };
+        WhitelistUserResponse: {
+            userId: number;
+            email: string;
+            firstName: string | null;
+            lastName: string | null;
+            slackUserId: string | null;
         };
         ToggleSubmissionsFrozenDto: {
             submissionsFrozen: boolean;
+        };
+        ToggleTotalSubmissionsFrozenDto: {
+            /** @description When true, ALL submissions are blocked, ignoring the submission whitelist. */
+            totalSubmissionsFrozen: boolean;
+        };
+        AddSubmissionWhitelistDto: {
+            /** @description User ID to add to the submission whitelist. */
+            userId?: number;
+            /** @description Slack user ID to resolve to a Horizons user and add to the whitelist. Used when userId is not provided. */
+            slackUserId?: string;
         };
         ElevatedUserResponse: {
             userId: number;
@@ -6609,6 +6680,92 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GlobalSettingsResponse"];
+                };
+            };
+        };
+    };
+    AdminController_toggleTotalSubmissionsFrozen: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ToggleTotalSubmissionsFrozenDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GlobalSettingsResponse"];
+                };
+            };
+        };
+    };
+    AdminController_getSubmissionWhitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhitelistUserResponse"][];
+                };
+            };
+        };
+    };
+    AdminController_addToSubmissionWhitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddSubmissionWhitelistDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhitelistUserResponse"][];
+                };
+            };
+        };
+    };
+    AdminController_removeFromSubmissionWhitelist: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WhitelistUserResponse"][];
                 };
             };
         };

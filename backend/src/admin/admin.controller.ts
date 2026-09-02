@@ -53,6 +53,7 @@ import {
   PriorityQueueEntryResponse,
   ProjectManifestSummaryResponse,
   GlobalSettingsResponse,
+  WhitelistUserResponse,
   ElevatedUserResponse,
   UpdateUserRoleResponse,
   UpdateUserResponse,
@@ -78,6 +79,8 @@ import {
   ToggleBanDto,
   UpdateSlackIdDto,
   ToggleSubmissionsFrozenDto,
+  ToggleTotalSubmissionsFrozenDto,
+  AddSubmissionWhitelistDto,
   UpdateUserRoleDto,
   PermRejectProjectDto,
   AdjustUserHoursDto,
@@ -633,6 +636,46 @@ export class AdminController {
       body.submissionsFrozen,
       req.user.userId,
     );
+  }
+
+  @Put('settings/total-submissions-frozen')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Admin)
+  @ApiOkResponse({ type: GlobalSettingsResponse })
+  async toggleTotalSubmissionsFrozen(
+    @Body() body: ToggleTotalSubmissionsFrozenDto,
+    @Req() req: Request,
+  ) {
+    return this.adminService.toggleTotalSubmissionsFrozen(
+      body.totalSubmissionsFrozen,
+      req.user.userId,
+    );
+  }
+
+  @Get('settings/submission-whitelist')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Superadmin)
+  @ApiOkResponse({ type: [WhitelistUserResponse] })
+  async getSubmissionWhitelist() {
+    return this.adminService.getSubmissionWhitelist();
+  }
+
+  @Post('settings/submission-whitelist')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Superadmin)
+  @ApiOkResponse({ type: [WhitelistUserResponse] })
+  async addToSubmissionWhitelist(@Body() body: AddSubmissionWhitelistDto) {
+    return this.adminService.addToSubmissionWhitelist(body);
+  }
+
+  @Delete('settings/submission-whitelist/:userId')
+  @UseGuards(RolesGuard)
+  @Roles(Role.Superadmin)
+  @ApiOkResponse({ type: [WhitelistUserResponse] })
+  async removeFromSubmissionWhitelist(
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.adminService.removeFromSubmissionWhitelist(userId);
   }
 
   @Get('users/search')

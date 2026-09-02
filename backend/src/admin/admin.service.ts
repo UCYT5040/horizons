@@ -2449,6 +2449,104 @@ export class AdminService {
     return settings;
   }
 
+  async toggleTotalSubmissionsFrozen(isFrozen: boolean, adminUserId: number) {
+    const settings = await this.prisma.globalSettings.upsert({
+      where: { id: 'global' },
+      update: {
+        totalSubmissionsFrozen: isFrozen,
+        totalSubmissionsFrozenAt: isFrozen ? new Date() : null,
+        totalSubmissionsFrozenBy: isFrozen ? adminUserId.toString() : null,
+      },
+      create: {
+        id: 'global',
+        totalSubmissionsFrozen: isFrozen,
+        totalSubmissionsFrozenAt: isFrozen ? new Date() : null,
+        totalSubmissionsFrozenBy: isFrozen ? adminUserId.toString() : null,
+      },
+    });
+
+    return settings;
+  }
+
+  // Resolve the raw whitelist ID array into user details for display. Preserves
+  // the stored order and silently drops IDs whose users no longer exist.
+  private async getWhitelistUsers(userIds: number[]) {
+    if (!userIds.length) return [];
+    const users = await this.prisma.user.findMany({
+      where: { userId: { in: userIds } },
+      select: {
+        userId: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        slackUserId: true,
+      },
+    });
+    const byId = new Map(users.map((u) => [u.userId, u]));
+    return userIds.map((id) => byId.get(id)).filter((u) => u != null);
+  }
+
+  async getSubmissionWhitelist() {
+    const settings = await this.getGlobalSettings();
+    return this.getWhitelistUsers(settings.submissionWhitelist ?? []);
+  }
+
+  async addToSubmissionWhitelist(input: {
+    userId?: number;
+    slackUserId?: string;
+  }) {
+    let userId = input.userId;
+
+    // Resolve a Slack user ID to a Horizons user when no userId was given.
+    if (userId == null && input.slackUserId) {
+      const user = await this.prisma.user.findUnique({
+        where: { slackUserId: input.slackUserId.trim() },
+        select: { userId: true },
+      });
+      if (!user) {
+        throw new NotFoundException(
+          `No user found with Slack ID "${input.slackUserId}".`,
+        );
+      }
+      userId = user.userId;
+    }
+
+    if (userId == null) {
+      throw new BadRequestException(
+        'Provide either a userId or a slackUserId to add to the whitelist.',
+      );
+    }
+
+    const target = await this.prisma.user.findUnique({
+      where: { userId },
+      select: { userId: true },
+    });
+    if (!target) {
+      throw new NotFoundException(`No user found with ID ${userId}.`);
+    }
+
+    const settings = await this.getGlobalSettings();
+    const current = settings.submissionWhitelist ?? [];
+    if (!current.includes(userId)) {
+      await this.prisma.globalSettings.update({
+        where: { id: 'global' },
+        data: { submissionWhitelist: { set: [...current, userId] } },
+      });
+    }
+
+    return this.getSubmissionWhitelist();
+  }
+
+  async removeFromSubmissionWhitelist(userId: number) {
+    const settings = await this.getGlobalSettings();
+    const current = settings.submissionWhitelist ?? [];
+    await this.prisma.globalSettings.update({
+      where: { id: 'global' },
+      data: { submissionWhitelist: { set: current.filter((id) => id !== userId) } },
+    });
+    return this.getSubmissionWhitelist();
+  }
+
   async getPriorityUsers() {
     const priorityUsers = await this.prisma.$queryRaw<
       Array<{

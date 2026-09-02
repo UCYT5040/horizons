@@ -2,15 +2,29 @@
     import { onMount } from 'svelte';
     import { api, type components } from '$lib/api';
     import { ensureUser } from '$lib/auth';
-    import { Button, Card } from '$lib/components';
+    import { Button, Card, TextField } from '$lib/components';
 
     type ReviewerLeaderboardEntry = components['schemas']['ReviewerLeaderboardEntry'];
     type PriorityUserResponse = components['schemas']['PriorityUserResponse'];
     type GlobalSettingsResponse = components['schemas']['GlobalSettingsResponse'];
+    type WhitelistUser = components['schemas']['WhitelistUserResponse'];
 
     // Global settings state
     let globalSettings = $state<GlobalSettingsResponse | null>(null);
     let globalSettingsLoading = $state(false);
+
+    // Submission whitelist state (superadmin only)
+    let whitelist = $state<WhitelistUser[]>([]);
+    let whitelistLoading = $state(false);
+    let whitelistError = $state('');
+    let wlPendingUserId = $state<number | null>(null);
+    let wlSearchQuery = $state('');
+    let wlSearchResults = $state<
+        { userId: number; email: string; firstName: string | null; lastName: string | null }[]
+    >([]);
+    let wlSearchLoading = $state(false);
+    let slackIdInput = $state('');
+    let slackIdBusy = $state(false);
 
     // Recalculate state
     let recalcAllBusy = $state(false);
@@ -88,6 +102,138 @@
             console.error('Failed to toggle submissions frozen:', err);
         } finally {
             globalSettingsLoading = false;
+        }
+    }
+
+    async function toggleTotalSubmissionsFrozen() {
+        if (!globalSettings) return;
+        globalSettingsLoading = true;
+        try {
+            const { data, error } = await api.PUT('/api/admin/settings/total-submissions-frozen', {
+                body: { totalSubmissionsFrozen: !globalSettings.totalSubmissionsFrozen }
+            });
+            if (error) {
+                console.error('Failed to toggle total submissions frozen:', error);
+                return;
+            }
+            globalSettings = data;
+        } catch (err) {
+            console.error('Failed to toggle total submissions frozen:', err);
+        } finally {
+            globalSettingsLoading = false;
+        }
+    }
+
+    async function loadWhitelist() {
+        whitelistLoading = true;
+        whitelistError = '';
+        try {
+            const { data, error } = await api.GET('/api/admin/settings/submission-whitelist');
+            if (error) {
+                whitelistError = 'Failed to load whitelist';
+                return;
+            }
+            whitelist = data;
+        } catch {
+            whitelistError = 'Failed to load whitelist';
+        } finally {
+            whitelistLoading = false;
+        }
+    }
+
+    let wlSearchTimeout: ReturnType<typeof setTimeout>;
+    function wlDebouncedSearch() {
+        clearTimeout(wlSearchTimeout);
+        if (!wlSearchQuery.trim() || wlSearchQuery.trim().length < 2) {
+            wlSearchResults = [];
+            return;
+        }
+        wlSearchTimeout = setTimeout(wlSearchUsers, 300);
+    }
+
+    async function wlSearchUsers() {
+        if (!wlSearchQuery.trim() || wlSearchQuery.trim().length < 2) {
+            wlSearchResults = [];
+            return;
+        }
+        wlSearchLoading = true;
+        try {
+            const { data, error } = await api.GET('/api/admin/users/search', {
+                params: { query: { q: wlSearchQuery.trim() } }
+            });
+            if (error || !data) return;
+            wlSearchResults = (data as any[]).map((u) => ({
+                userId: u.userId,
+                email: u.email,
+                firstName: u.firstName,
+                lastName: u.lastName
+            }));
+        } finally {
+            wlSearchLoading = false;
+        }
+    }
+
+    async function addWhitelistUser(body: { userId?: number; slackUserId?: string }) {
+        whitelistError = '';
+        try {
+            const { data, error } = await api.POST('/api/admin/settings/submission-whitelist', {
+                body
+            });
+            if (error) {
+                whitelistError =
+                    (error as { message?: string })?.message ?? 'Failed to add user to whitelist';
+                return false;
+            }
+            whitelist = data;
+            return true;
+        } catch {
+            whitelistError = 'Failed to add user to whitelist';
+            return false;
+        }
+    }
+
+    async function addWhitelistById(userId: number) {
+        wlPendingUserId = userId;
+        try {
+            const ok = await addWhitelistUser({ userId });
+            if (ok) {
+                wlSearchResults = [];
+                wlSearchQuery = '';
+            }
+        } finally {
+            wlPendingUserId = null;
+        }
+    }
+
+    async function addWhitelistBySlackId() {
+        const slackUserId = slackIdInput.trim();
+        if (!slackUserId) return;
+        slackIdBusy = true;
+        try {
+            const ok = await addWhitelistUser({ slackUserId });
+            if (ok) slackIdInput = '';
+        } finally {
+            slackIdBusy = false;
+        }
+    }
+
+    async function removeWhitelistUser(userId: number) {
+        wlPendingUserId = userId;
+        whitelistError = '';
+        try {
+            const { data, error } = await api.DELETE(
+                '/api/admin/settings/submission-whitelist/{userId}',
+                { params: { path: { userId } } }
+            );
+            if (error) {
+                whitelistError = 'Failed to remove user from whitelist';
+                return;
+            }
+            whitelist = data;
+        } catch {
+            whitelistError = 'Failed to remove user from whitelist';
+        } finally {
+            wlPendingUserId = null;
         }
     }
 
@@ -239,6 +385,7 @@
         loadPriorityUsers();
         const me = await ensureUser();
         currentUserRoles = me?.roles ?? [];
+        if (isSuperadmin) loadWhitelist();
     });
 </script>
 
@@ -260,7 +407,8 @@
                     <div>
                         <p class="font-medium text-ds-text">Submissions Frozen</p>
                         <p class="text-sm text-ds-text-secondary">
-                            When enabled, users cannot submit or resubmit projects.
+                            When enabled, users cannot submit or resubmit projects —
+                            except users on the submission whitelist below.
                         </p>
                     </div>
                     <Button
@@ -276,7 +424,7 @@
                         {:else}
                             <span>{globalSettings.submissionsFrozen ? '🧊' : '▶️'}</span>
                         {/if}
-                        {globalSettings.submissionsFrozen ? 'Submissions Frozen' : 'Freeze All Submissions'}
+                        {globalSettings.submissionsFrozen ? 'Submissions Frozen' : 'Freeze Submissions'}
                     </Button>
                 </div>
 
@@ -289,6 +437,7 @@
                             </p>
                             <p class="text-sm text-blue-700 dark:text-blue-300">
                                 Users cannot submit or resubmit projects until unfrozen.
+                                Whitelisted users can still submit.
                             </p>
                             {#if globalSettings.submissionsFrozenAt}
                                 <p class="text-xs text-blue-700 dark:text-blue-300 mt-1">
@@ -301,11 +450,187 @@
                         </div>
                     </div>
                 {/if}
+
+                <div class="flex items-center justify-between rounded-xl border border-ds-border bg-ds-surface2/50 p-4">
+                    <div>
+                        <p class="font-medium text-ds-text">Total Submission Freeze</p>
+                        <p class="text-sm text-ds-text-secondary">
+                            When enabled, <span class="font-semibold">no one</span> can submit or
+                            resubmit — the whitelist is ignored. Overrides the freeze above.
+                        </p>
+                    </div>
+                    <Button
+                        variant="ghost"
+                        class={globalSettings.totalSubmissionsFrozen
+                            ? 'bg-red-600/20 border-red-500 text-red-700 dark:text-red-300 hover:bg-red-600/30'
+                            : ''}
+                        onclick={toggleTotalSubmissionsFrozen}
+                        disabled={globalSettingsLoading}
+                    >
+                        {#if globalSettingsLoading}
+                            <span class="animate-spin">⟳</span>
+                        {:else}
+                            <span>{globalSettings.totalSubmissionsFrozen ? '🛑' : '⛔'}</span>
+                        {/if}
+                        {globalSettings.totalSubmissionsFrozen
+                            ? 'Total Freeze Active'
+                            : 'Freeze All Submissions'}
+                    </Button>
+                </div>
+
+                {#if globalSettings.totalSubmissionsFrozen}
+                    <div class="rounded-xl border border-red-500 bg-red-600/10 p-4 flex items-center gap-3">
+                        <span class="text-2xl">🛑</span>
+                        <div>
+                            <p class="font-semibold text-red-700 dark:text-red-300">
+                                Total submission freeze is active
+                            </p>
+                            <p class="text-sm text-red-700 dark:text-red-300">
+                                No user can submit or resubmit — including whitelisted users.
+                            </p>
+                            {#if globalSettings.totalSubmissionsFrozenAt}
+                                <p class="text-xs text-red-700 dark:text-red-300 mt-1">
+                                    Frozen at: {formatDate(globalSettings.totalSubmissionsFrozenAt)}
+                                    {#if globalSettings.totalSubmissionsFrozenBy}
+                                        by {globalSettings.totalSubmissionsFrozenBy}
+                                    {/if}
+                                </p>
+                            {/if}
+                        </div>
+                    </div>
+                {/if}
             </div>
         {:else}
             <p class="text-ds-text-secondary text-sm">Failed to load settings.</p>
         {/if}
     </Card>
+
+    {#if isSuperadmin}
+        <!-- Submission Whitelist (superadmin only) -->
+        <Card class="p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-xl font-semibold flex items-center gap-2">
+                    Submission Whitelist
+                </h2>
+                <Button variant="ghost" onclick={loadWhitelist} disabled={whitelistLoading}>
+                    {whitelistLoading ? 'Loading...' : 'Refresh'}
+                </Button>
+            </div>
+            <p class="text-sm text-ds-text-secondary">
+                These users can still submit while <span class="font-medium">Submissions Frozen</span>
+                is on. They are blocked by a <span class="font-medium">Total Submission Freeze</span>.
+            </p>
+
+            {#if whitelistError}
+                <p class="text-xs text-ds-red">{whitelistError}</p>
+            {/if}
+
+            <!-- Add by name/email search -->
+            <div class="space-y-2">
+                <TextField
+                    bind:value={wlSearchQuery}
+                    placeholder="Search by name or email..."
+                    oninput={wlDebouncedSearch}
+                />
+                {#if wlSearchLoading}
+                    <p class="text-ds-text-secondary text-sm">Searching...</p>
+                {:else if wlSearchResults.length > 0}
+                    <div class="space-y-2">
+                        {#each wlSearchResults as result}
+                            <div class="flex items-center justify-between rounded-lg border border-ds-border bg-ds-surface2/50 p-3">
+                                <div>
+                                    <p class="text-sm font-medium text-ds-text">
+                                        {result.firstName || ''} {result.lastName || ''}
+                                    </p>
+                                    <p class="text-xs text-ds-text-secondary">{result.email}</p>
+                                </div>
+                                <Button
+                                    variant="approve"
+                                    onclick={() => addWhitelistById(result.userId)}
+                                    disabled={wlPendingUserId === result.userId ||
+                                        whitelist.some((w) => w.userId === result.userId)}
+                                >
+                                    {whitelist.some((w) => w.userId === result.userId)
+                                        ? 'Added'
+                                        : 'Add'}
+                                </Button>
+                            </div>
+                        {/each}
+                    </div>
+                {:else if wlSearchQuery.trim()}
+                    <p class="text-ds-text-placeholder text-sm">No users found matching "{wlSearchQuery}"</p>
+                {/if}
+            </div>
+
+            <!-- Add by Slack user ID -->
+            <div class="flex items-end gap-2">
+                <div class="flex-1">
+                    <label class="text-sm text-ds-text-secondary" for="wl-slack-id">
+                        Or add by Slack user ID
+                    </label>
+                    <TextField
+                        id="wl-slack-id"
+                        bind:value={slackIdInput}
+                        placeholder="e.g. U01ABCDEF"
+                    />
+                </div>
+                <Button onclick={addWhitelistBySlackId} disabled={slackIdBusy || !slackIdInput.trim()}>
+                    {slackIdBusy ? 'Adding...' : 'Add by Slack ID'}
+                </Button>
+            </div>
+
+            <!-- Current whitelist -->
+            <div class="space-y-2">
+                <h3 class="text-sm font-semibold text-ds-text">
+                    Whitelisted users
+                    <span class="text-xs text-ds-text-placeholder">{whitelist.length}</span>
+                </h3>
+                {#if whitelistLoading}
+                    <p class="text-ds-text-secondary text-sm">Loading whitelist...</p>
+                {:else if whitelist.length === 0}
+                    <p class="text-ds-text-placeholder text-sm">No users whitelisted.</p>
+                {:else}
+                    <div class="overflow-x-auto rounded-lg border border-ds-border">
+                        <table class="w-full">
+                            <thead class="bg-ds-surface2/50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-ds-text-secondary">User</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-ds-text-secondary">Email</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-ds-text-secondary">Slack ID</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold text-ds-text-secondary">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-ds-border-divider">
+                                {#each whitelist as user (user.userId)}
+                                    <tr class="hover:bg-ds-surface2/30">
+                                        <td class="px-4 py-3">
+                                            <p class="text-sm font-medium text-ds-text">
+                                                {user.firstName || ''} {user.lastName || ''}
+                                            </p>
+                                            <p class="text-xs text-ds-text-placeholder">ID: {user.userId}</p>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-ds-text-secondary">{user.email}</td>
+                                        <td class="px-4 py-3 text-sm text-ds-text-secondary">
+                                            {user.slackUserId || '—'}
+                                        </td>
+                                        <td class="px-4 py-3 text-center">
+                                            <Button
+                                                variant="reject"
+                                                onclick={() => removeWhitelistUser(user.userId)}
+                                                disabled={wlPendingUserId === user.userId}
+                                            >
+                                                Remove
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                {/each}
+                            </tbody>
+                        </table>
+                    </div>
+                {/if}
+            </div>
+        </Card>
+    {/if}
 
     <!-- Project Actions -->
     <Card class="p-6 space-y-4">
