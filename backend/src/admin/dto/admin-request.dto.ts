@@ -63,6 +63,34 @@ export class ToggleSubmissionsFrozenDto {
   submissionsFrozen: boolean;
 }
 
+export class ToggleTotalSubmissionsFrozenDto {
+  @ApiProperty({
+    description:
+      'When true, ALL submissions are blocked, ignoring the submission whitelist.',
+  })
+  @IsBoolean()
+  totalSubmissionsFrozen: boolean;
+}
+
+export class AddSubmissionWhitelistDto {
+  @ApiPropertyOptional({
+    type: Number,
+    description: 'User ID to add to the submission whitelist.',
+  })
+  @IsOptional()
+  @IsNumber()
+  userId?: number;
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Slack user ID to resolve to a Horizons user and add to the whitelist. Used when userId is not provided.',
+  })
+  @IsOptional()
+  @IsString()
+  slackUserId?: string;
+}
+
 export class UpdateUserRoleDto {
   @ApiProperty({
     isArray: true,

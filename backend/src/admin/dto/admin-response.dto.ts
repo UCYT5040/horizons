@@ -908,6 +908,38 @@ export class GlobalSettingsResponse {
 
   @ApiProperty({ type: String, nullable: true })
   submissionsFrozenBy: string | null;
+
+  @ApiProperty()
+  totalSubmissionsFrozen: boolean;
+
+  @ApiProperty({ type: Date, nullable: true })
+  totalSubmissionsFrozenAt: Date | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  totalSubmissionsFrozenBy: string | null;
+
+  @ApiProperty({
+    type: [Number],
+    description: 'User IDs allowed to submit while submissions are frozen.',
+  })
+  submissionWhitelist: number[];
+}
+
+export class WhitelistUserResponse {
+  @ApiProperty()
+  userId: number;
+
+  @ApiProperty()
+  email: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  firstName: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  lastName: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  slackUserId: string | null;
 }
 
 export class AdminDeleteProjectResponse {

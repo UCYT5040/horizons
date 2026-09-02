@@ -424,11 +424,20 @@ export class ProjectsService {
       );
     }
 
-    // Check if submissions are globally frozen
+    // Check if submissions are globally frozen. A total freeze blocks everyone;
+    // a regular freeze blocks everyone except whitelisted users.
     const globalSettings = await this.prisma.globalSettings.findUnique({
       where: { id: 'global' },
     });
-    if (globalSettings?.submissionsFrozen) {
+    if (globalSettings?.totalSubmissionsFrozen) {
+      throw new ForbiddenException(
+        'Submissions are currently frozen. Please try again later.',
+      );
+    }
+    if (
+      globalSettings?.submissionsFrozen &&
+      !(globalSettings.submissionWhitelist ?? []).includes(userId)
+    ) {
       throw new ForbiddenException(
         'Submissions are currently frozen. Please try again later.',
       );
