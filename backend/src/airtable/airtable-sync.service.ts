@@ -112,22 +112,33 @@ export class AirtableSyncService implements OnModuleInit {
         return;
       }
 
+      // The Airtable cell mirrors Project.hoursJustification (the internal
+      // reviewer justification), never Submission.hoursJustification, which is
+      // the feedback shown to the submitter. Only the project's latest approved
+      // submission still tracks the project value, so older approved rows are
+      // left alone.
       const submissions = await this.prisma.submission.findMany({
-        where: { approvalStatus: 'approved', airtableRecId: { not: null } },
+        where: { approvalStatus: 'approved' },
+        orderBy: { createdAt: 'desc' },
         select: {
           submissionId: true,
           projectId: true,
           airtableRecId: true,
-          hoursJustification: true,
           updatedAt: true,
+          project: { select: { hoursJustification: true, updatedAt: true } },
         },
       });
 
       const graceCutoff = Date.now() - AirtableSyncService.PULL_GRACE_MS;
+      const seenProjects = new Set<number>();
 
       for (const submission of submissions) {
+        if (seenProjects.has(submission.projectId)) continue;
+        seenProjects.add(submission.projectId);
+        if (!submission.airtableRecId) continue;
+
         const airtableValue = airtableJustifications.get(
-          submission.airtableRecId!,
+          submission.airtableRecId,
         );
         // No matching Airtable record (deleted, or never created) — nothing to
         // reconcile against.
@@ -136,7 +147,9 @@ export class AirtableSyncService implements OnModuleInit {
 
         if (
           AirtableService.normalizeJustification(airtableValue) ===
-          AirtableService.normalizeJustification(submission.hoursJustification)
+          AirtableService.normalizeJustification(
+            submission.project.hoursJustification,
+          )
         ) {
           continue;
         }
@@ -146,13 +159,17 @@ export class AirtableSyncService implements OnModuleInit {
         // before we consider adopting Airtable's (possibly stale) value. The
         // pre-edit reconcile handles the "admin is editing right now" case
         // synchronously, so this window only defers passive drift.
-        if (submission.updatedAt.getTime() > graceCutoff) continue;
+        const lastWrite = Math.max(
+          submission.updatedAt.getTime(),
+          submission.project.updatedAt.getTime(),
+        );
+        if (lastWrite > graceCutoff) continue;
 
         await this.airtableService.applyJustificationPull({
           submissionId: submission.submissionId,
           projectId: submission.projectId,
-          airtableRecId: submission.airtableRecId!,
-          from: submission.hoursJustification,
+          airtableRecId: submission.airtableRecId,
+          from: submission.project.hoursJustification,
           to: airtableValue,
           trigger: 'cron',
         });

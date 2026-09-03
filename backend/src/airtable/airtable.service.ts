@@ -1167,10 +1167,10 @@ export class AirtableService {
 
   /**
    * GET the current Airtable justification for a submission and, if it diverges
-   * from what Horizons holds, pull it in (writing the submission + project mirror
-   * and logging the pull). Called at the start of a Horizons edit so an
-   * Airtable-side edit is captured and audited rather than silently clobbered by
-   * the regenerate-and-overwrite that the edit is about to do.
+   * from Project.hoursJustification, pull it in (writing the project and logging
+   * the pull). Called at the start of a Horizons edit so an Airtable-side edit is
+   * captured and audited rather than silently clobbered by the
+   * regenerate-and-overwrite that the edit is about to do.
    *
    * Best-effort: a read failure is logged and swallowed so it can't block the
    * edit the caller actually intends to make.
@@ -1179,7 +1179,7 @@ export class AirtableService {
     submissionId: number;
     projectId: number;
     airtableRecId: string | null;
-    hoursJustification: string | null;
+    project: { hoursJustification: string | null };
   }): Promise<void> {
     if (!submission.airtableRecId) return;
 
@@ -1195,7 +1195,9 @@ export class AirtableService {
     if (airtableValue === null) return;
     if (
       AirtableService.normalizeJustification(airtableValue) ===
-      AirtableService.normalizeJustification(submission.hoursJustification)
+      AirtableService.normalizeJustification(
+        submission.project.hoursJustification,
+      )
     ) {
       return;
     }
@@ -1204,18 +1206,21 @@ export class AirtableService {
       submissionId: submission.submissionId,
       projectId: submission.projectId,
       airtableRecId: submission.airtableRecId,
-      from: submission.hoursJustification,
+      from: submission.project.hoursJustification,
       to: airtableValue,
       trigger: 'pre-edit',
     });
   }
 
   /**
-   * Adopt an Airtable-sourced justification for one submission: write it to the
-   * submission (and the project mirror when this is the project's latest approved
-   * submission) and log the pull under the system actor. Done in a transaction so
-   * the DB write and the audit entry can't diverge. Shared by the reverse-sync
-   * cron and the pre-edit reconcile.
+   * Adopt an Airtable-sourced justification: write it to Project.hoursJustification
+   * and log the pull under the system actor, in one transaction so the DB write
+   * and the audit entry can't diverge. Shared by the reverse-sync cron and the
+   * pre-edit reconcile.
+   *
+   * Submission.hoursJustification is the feedback shown to the submitter and is
+   * never written here. The Airtable cell only tracks the project's latest
+   * approved submission, so a pull for an older submission is a no-op.
    */
   async applyJustificationPull(params: {
     submissionId: number;
@@ -1230,30 +1235,23 @@ export class AirtableService {
       orderBy: { createdAt: 'desc' },
       select: { submissionId: true },
     });
-    const isProjectMirror =
-      latestApproved?.submissionId === params.submissionId;
+    if (latestApproved?.submissionId !== params.submissionId) return;
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.submission.update({
-        where: { submissionId: params.submissionId },
+      await tx.project.update({
+        where: { projectId: params.projectId },
         data: { hoursJustification: params.to },
       });
-      if (isProjectMirror) {
-        await tx.project.update({
-          where: { projectId: params.projectId },
-          data: { hoursJustification: params.to },
-        });
-      }
       await tx.submissionAuditLog.create({
         data: {
           submissionId: params.submissionId,
           adminId: SYSTEM_ACTOR_ID,
           action: AUDIT_ACTIONS.airtableJustificationPull,
           changes: {
+            field: 'project.hoursJustification',
             from: params.from,
             to: params.to,
             airtableRecId: params.airtableRecId,
-            projectMirrorUpdated: isProjectMirror,
             trigger: params.trigger,
           } as any,
         },
