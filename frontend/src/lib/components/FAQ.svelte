@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { parseInlineMarkdown } from '$lib/markdown';
+
 	export let markdown: string = '';
 
 	function parseMarkdownToFaq(markdown: string) {
@@ -34,12 +36,9 @@
 		return faqs;
 	}
 
-	function parseMarkdownText(text: string): string {
-		return text
-			.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, '<a href="$2" class="underline hover:opacity-70">$1</a>')
-			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-			.replace(/\n/g, '<br />');
-	}
+	// Delegates to the shared XSS-safe inline renderer (escapes HTML, blocks
+	// unsafe link schemes). Kept as a local alias to avoid touching call sites.
+	const parseMarkdownText = parseInlineMarkdown;
 
 	$: faqs = parseMarkdownToFaq(markdown);
 </script>

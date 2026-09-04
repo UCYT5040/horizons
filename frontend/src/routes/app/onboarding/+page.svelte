@@ -12,6 +12,7 @@
 	import HackatimeLinkButton from '$lib/components/HackatimeLinkButton.svelte';
 	import { invalidateAllProjectCaches } from '$lib/store/projectDetailCache';
 	import { fetchProjects } from '$lib/store/projectCache';
+	import { parseInlineMarkdown } from '$lib/markdown';
 
 	interface ApiEvent {
 		slug: string;
@@ -131,8 +132,12 @@
 
 	const currentStep = $derived({
 		...steps[step],
+		// The static step `text` values are trusted, dev-authored copy that
+		// intentionally contains inline HTML and are rendered via {@html}. The
+		// event description, by contrast, is admin-authored data, so run it
+		// through the XSS-safe inline renderer before it reaches that sink.
 		...(isEventSelectStep && selectedApiEvent?.description
-			? { text: selectedApiEvent.description }
+			? { text: parseInlineMarkdown(selectedApiEvent.description) }
 			: {})
 	});
 

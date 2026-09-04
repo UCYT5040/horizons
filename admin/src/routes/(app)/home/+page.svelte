@@ -16,6 +16,18 @@
 
 	let worldMapRegistered = false;
 
+	// ECharts tooltip `formatter` return values are injected as raw HTML. Any
+	// user-controlled string (e.g. utm_source, taken verbatim from a query param
+	// at signup) must be escaped before interpolation or it becomes stored XSS.
+	function escapeHtml(value: string): string {
+		return String(value)
+			.replaceAll('&', '&amp;')
+			.replaceAll('<', '&lt;')
+			.replaceAll('>', '&gt;')
+			.replaceAll('"', '&quot;')
+			.replaceAll("'", '&#39;');
+	}
+
 	type Stats = components['schemas']['AdminStatsResponse'];
 	type ReviewStats = components['schemas']['ReviewStatsResponse'];
 	type UserHoursDistribution = components['schemas']['UserHoursDistributionResponse'];
@@ -1087,7 +1099,7 @@
 					const d = data[idx];
 					const onboardedPct = d.count ? ((d.onboardedCount / d.count) * 100).toFixed(1) : '0.0';
 					const shippedPct = d.count ? ((d.shipped10HoursCount / d.count) * 100).toFixed(1) : '0.0';
-					return `<b>${d.source}</b><br/>`
+					return `<b>${escapeHtml(d.source)}</b><br/>`
 						+ `Total: ${d.count}<br/>`
 						+ `Onboarded: ${d.onboardedCount} (${onboardedPct}%)<br/>`
 						+ `Shipped 10+ hrs: ${d.shipped10HoursCount} (${shippedPct}%)`;
