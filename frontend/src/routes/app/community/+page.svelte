@@ -7,6 +7,7 @@
 	import { createListNav } from "$lib/nav/wasd.svelte";
 	import { api } from "$lib/api";
 	import { pollWhileVisible } from "$lib/perf";
+	import { parseInlineMarkdown } from "$lib/markdown";
 
 	let entered = $state(false);
 	let navigating = $state(false);
@@ -74,15 +75,9 @@
 		return parts.find((p) => p.type === "timeZoneName")?.value ?? "";
 	}
 
-	function parseMarkdownText(text: string): string {
-		return text
-			.replace(
-				/\[([^\]]+)\]\(([^\)]+)\)/g,
-				'<a href="$2" class="underline hover:opacity-70">$1</a>',
-			)
-			.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-			.replace(/\n/g, "<br />");
-	}
+	// Delegates to the shared XSS-safe inline renderer (escapes HTML, blocks
+	// unsafe link schemes). Kept as a local alias to avoid touching call sites.
+	const parseMarkdownText = parseInlineMarkdown;
 
 	interface MonthGroup {
 		label: string;
